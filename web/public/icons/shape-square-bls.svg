@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <!-- Shadow Base -->
+  <rect x="4" y="5.5" width="28" height="28" rx="4" fill="#0f172a" opacity="0.45"/>
+  <!-- Solid Vivid Royal Blue Square with Crisp White Outline -->
+  <rect x="4" y="4" width="28" height="28" rx="4" fill="#2563eb" stroke="#ffffff" stroke-width="2.5"/>
+</svg>

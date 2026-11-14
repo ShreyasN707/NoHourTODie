@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <!-- Shadow Base -->
+  <circle cx="18" cy="19.5" r="14" fill="#0f172a" opacity="0.45"/>
+  <!-- Solid Vivid Amber Orange Circle with Crisp White Outline -->
+  <circle cx="18" cy="18" r="14" fill="#ea580c" stroke="#ffffff" stroke-width="2.5"/>
+</svg>

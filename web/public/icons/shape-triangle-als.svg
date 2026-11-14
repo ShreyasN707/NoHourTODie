@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <!-- Shadow Base -->
+  <polygon points="18,5.5 33,31.5 3,31.5" fill="#0f172a" opacity="0.45" stroke-linejoin="round"/>
+  <!-- Solid Vivid Red Triangle with Crisp White Outline -->
+  <polygon points="18,4 32,30 4,30" fill="#dc2626" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+</svg>

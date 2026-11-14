@@ -201,61 +201,72 @@ export default function App() {
     const badges: any[] = []
 
     currBlockPlan.deployments.forEach((d: any) => {
-      // ALS Ambulance
+      const totalTypes = (d.a > 0 ? 1 : 0) + (d.b > 0 ? 1 : 0) + (d.y > 0 ? 1 : 0)
+
+      // ALS Ambulance (Red Triangle)
       if (d.a > 0) {
+        const offX = totalTypes > 1 ? -0.0008 : 0
+        const offY = totalTypes > 1 ? 0.0006 : 0
         markers.push({
           ...d,
           vType: 'ALS',
           count: d.a,
-          iconUrl: '/icons/icon-als.svg',
+          iconUrl: '/icons/shape-triangle-als.svg',
           color: [239, 68, 68],
-          offsetY: d.b > 0 || d.y > 0 ? 0.0008 : 0,
+          offsetX: offX,
+          offsetY: offY,
         })
         if (d.a > 1) {
           badges.push({
-            lat: d.lat + (d.b > 0 || d.y > 0 ? 0.0016 : 0.0008),
-            lon: d.lon,
-            text: `${d.a}× ALS`,
+            lat: d.lat + offY + 0.0010,
+            lon: d.lon + offX,
+            text: `${d.a}×`,
             color: [239, 68, 68],
           })
         }
       }
 
-      // BLS Ambulance
+      // BLS Ambulance (Blue Square)
       if (d.b > 0) {
+        const offX = totalTypes > 1 ? 0.0008 : 0
+        const offY = totalTypes > 1 ? -0.0006 : 0
         markers.push({
           ...d,
           vType: 'BLS',
           count: d.b,
-          iconUrl: '/icons/icon-bls.svg',
+          iconUrl: '/icons/shape-square-bls.svg',
           color: [59, 130, 246],
-          offsetY: d.a > 0 ? -0.0008 : 0,
+          offsetX: offX,
+          offsetY: offY,
         })
         if (d.b > 1) {
           badges.push({
-            lat: d.lat + (d.a > 0 ? -0.0016 : 0.0008),
-            lon: d.lon,
-            text: `${d.b}× BLS`,
+            lat: d.lat + offY + 0.0010,
+            lon: d.lon + offX,
+            text: `${d.b}×`,
             color: [59, 130, 246],
           })
         }
       }
 
-      // Bike Paramedic
+      // Bike Paramedic (Orange Circle)
       if (d.y > 0) {
+        const offX = totalTypes > 2 ? 0 : (totalTypes > 1 ? 0.0008 : 0)
+        const offY = totalTypes > 1 ? 0.0012 : 0
         markers.push({
           ...d,
           vType: 'Bike',
           count: d.y,
-          iconUrl: '/icons/icon-bike.svg',
+          iconUrl: '/icons/shape-circle-bike.svg',
           color: [249, 115, 22],
-          offsetY: d.a > 0 || d.b > 0 ? 0.0015 : 0,
+          offsetX: offX,
+          offsetY: offY,
         })
         if (d.y > 1) {
           badges.push({
-            lat: d.lat + 0.0022,
-            lon: d.lon,
-            text: `${d.y}× Bike`,
+            lat: d.lat + offY + 0.0010,
+            lon: d.lon + offX,
+            text: `${d.y}×`,
             color: [249, 115, 22],
           })
         }
@@ -280,106 +291,107 @@ export default function App() {
     // 1. High-Contrast Hexagon Layer
     const hexLayer = showHexagons
       ? new H3HexagonLayer({
-          id: 'h3-hexagons',
-          data: cells,
-          pickable: true,
-          wireframe: true,
-          filled: true,
-          extruded: false,
-          lineWidthMinPixels: 1,
-          getLineColor: [30, 41, 59, 90], // Subtle dark slate hexagon borders
-          getHexagon: (d: any) => d.h3,
-          getFillColor: (d: any, { index }: any) => {
-            // Layer 1: Reachability
-            if (layerMode === 'reach') {
-              const reachable = scenarios?.reach?.[index]
-              return reachable
-                ? [16, 185, 129, 140] // Clear Emerald Green
-                : [220, 38, 38, 170]   // Warning Red
-            }
+        id: 'h3-hexagons',
+        data: cells,
+        pickable: true,
+        wireframe: true,
+        filled: true,
+        extruded: false,
+        lineWidthMinPixels: 0.8,
+        getLineColor: [255, 255, 255, 80], // Clean translucent white borders (eliminates dark wireframe)
+        getHexagon: (d: any) => d.h3,
+        getFillColor: (d: any, { index }: any) => {
+          // Layer 1: Reachability
+          if (layerMode === 'reach') {
+            const reachable = scenarios?.reach?.[index]
+            return reachable
+              ? [34, 197, 94, 150] // Clear Emerald Green
+              : [239, 68, 68, 175]  // Warning Red
+          }
 
-            // Layer 2: Demand Density (Multi-Stop Heatmap)
-            if (layerMode === 'demand') {
-              const lam = d.lam?.[blockId] || 0
-              if (lam > 0.10) return [239, 68, 68, 190] // High Demand: Red
-              if (lam > 0.05) return [245, 158, 11, 160] // Medium-High: Amber
-              if (lam > 0.02) return [59, 130, 246, 130] // Moderate: Blue
-              return [71, 85, 105, 100] // Low: Slate
-            }
+          // Layer 2: Demand Density (Multi-Stop Heatmap)
+          if (layerMode === 'demand') {
+            const lam = d.lam?.[blockId] || 0
+            if (lam > 0.10) return [239, 68, 68, 190] // High Demand: Red
+            if (lam > 0.05) return [245, 158, 11, 165] // Medium-High: Amber
+            if (lam > 0.02) return [59, 130, 246, 140] // Moderate: Blue
+            return [148, 163, 184, 75] // Low: Soft Slate
+          }
 
-            // Layer 3: Response Time in Minutes
-            if (layerMode === 'nearest') {
-              const m = currBlockPlan.nearest_min?.[index] ?? 25
-              if (m <= targetMin * 0.55) return [16, 185, 129, 150] // < 8 min: Emerald Green
-              if (m <= targetMin) return [245, 158, 11, 150]       // 8 - 15 min: Warm Amber
-              if (m <= targetMin * 1.5) return [249, 115, 22, 170] // 15 - 22 min: Orange
-              return [220, 38, 38, 190]                           // > 22 min: Critical Red
-            }
+          // Layer 3: Response Time in Minutes
+          if (layerMode === 'nearest') {
+            const m = currBlockPlan.nearest_min?.[index] ?? 25
+            if (m <= targetMin * 0.55) return [34, 197, 94, 150] // < 8 min: Emerald Green
+            if (m <= targetMin) return [245, 158, 11, 150]       // 8 - 15 min: Warm Amber
+            if (m <= targetMin * 1.5) return [249, 115, 22, 170] // 15 - 22 min: Orange
+            return [239, 68, 68, 190]                           // > 22 min: Critical Red
+          }
 
-            // Layer 4: Chance In-Time (Expected Cover)
-            const cov = currBlockPlan.cover?.[index] ?? 0
-            if (cov >= 0.75) return [16, 185, 129, 145] // High Coverage: Emerald Green
-            if (cov >= 0.50) return [245, 158, 11, 145] // Moderate: Warm Amber
-            return [220, 38, 38, 175]                   // Delayed/Sub-floor: Critical Red
-          },
-          updateTriggers: {
-            getFillColor: [layerMode, blockId, planType, currBlockPlan],
-          },
-        })
+          // Layer 4: Chance In-Time (Expected Cover)
+          const cov = currBlockPlan.cover?.[index] ?? 0
+          if (cov >= 0.75) return [34, 197, 94, 150] // High Coverage: Emerald Green
+          if (cov >= 0.50) return [245, 158, 11, 150] // Moderate: Warm Amber
+          return [239, 68, 68, 175]                   // Delayed/Sub-floor: Critical Red
+        },
+        updateTriggers: {
+          getFillColor: [layerMode, blockId, planType, currBlockPlan],
+        },
+      })
       : null
 
-    // 2. Municipal Ward Boundaries Layer
+    // 2. Municipal Ward Boundaries Layer (BBMP Wards / Taluks)
     const zoneLayer =
       showWards && zonesGeo
         ? new GeoJsonLayer({
-            id: 'admin-zones',
-            data: zonesGeo,
-            pickable: false,
-            stroked: true,
-            filled: false,
-            lineWidthMinPixels: 1.5,
-            getLineColor: [71, 85, 105, 140], // Crisp boundary lines
-          })
+          id: 'admin-zones',
+          data: zonesGeo,
+          pickable: false,
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 2.0,
+          getLineColor: [51, 65, 85, 200], // Solid Slate-700 boundary lines
+        })
         : null
 
-    // 3. Crew Move Arcs Layer (Relocations)
+    // 3. Crew Move Arcs Layer (Relocations between shifts)
     const movesLayer =
       showArcs && blockMoves.length > 0
         ? new ArcLayer({
-            id: 'crew-moves-arcs',
-            data: blockMoves,
-            pickable: true,
-            getWidth: 4.5,
-            getSourcePosition: (d: any) => [d.from_lon, d.from_lat],
-            getTargetPosition: (d: any) => [d.to_lon, d.to_lat],
-            // Gradient: Green (Origin) ➔ Red (Destination)
-            getSourceColor: [16, 185, 129, 230],
-            getTargetColor: [239, 68, 68, 240],
-            onClick: ({ object }: any) => {
-              if (object) setSelectedMove(object)
-            },
-          })
+          id: 'crew-moves-arcs',
+          data: blockMoves,
+          pickable: true,
+          getWidth: 4,
+          getSourcePosition: (d: any) => [d.from_lon, d.from_lat],
+          getTargetPosition: (d: any) => [d.to_lon, d.to_lat],
+          // Gradient: Green (Origin) ➔ Red (Destination)
+          getSourceColor: [34, 197, 94, 240],
+          getTargetColor: [239, 68, 68, 250],
+          onClick: ({ object }: any) => {
+            if (object) setSelectedMove(object)
+          },
+        })
         : null
 
     // 4. Move Target Rings (Destination Arrival Indicators)
     const moveRingsLayer =
       showArcs && moveEndpoints.length > 0
         ? new ScatterplotLayer({
-            id: 'move-arrival-rings',
-            data: moveEndpoints,
-            pickable: false,
-            stroked: true,
-            filled: false,
-            lineWidthMinPixels: 2.5,
-            radiusMinPixels: 14,
-            radiusMaxPixels: 26,
-            getPosition: (d: any) => [d.lon, d.lat],
-            getRadius: 300,
-            getLineColor: [239, 68, 68, 240], // Red destination beacon ring
-          })
+          id: 'move-arrival-rings',
+          data: moveEndpoints,
+          pickable: false,
+          stroked: true,
+          filled: true,
+          lineWidthMinPixels: 2.5,
+          radiusMinPixels: 12,
+          radiusMaxPixels: 22,
+          getPosition: (d: any) => [d.lon, d.lat],
+          getRadius: 300,
+          getFillColor: [239, 68, 68, 70],  // Soft red target fill
+          getLineColor: [239, 68, 68, 255], // Red destination beacon ring
+        })
         : null
 
-    // 5. Vehicle Radar Halos (High-visibility background circles)
+    // 5. High-Visibility Vehicle Backing Halos (Crisp white disc for perfect contrast against any map fill)
     const vehicleHaloLayer = showVehicles
       ? new ScatterplotLayer({
           id: 'vehicle-halos',
@@ -387,56 +399,56 @@ export default function App() {
           pickable: false,
           stroked: true,
           filled: true,
-          lineWidthMinPixels: 2,
-          radiusMinPixels: 12,
-          radiusMaxPixels: 22,
-          getPosition: (d: any) => [d.lon, d.lat + (d.offsetY || 0)],
-          getRadius: (d: any) => 180 + d.count * 60,
-          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 140],
-          getLineColor: [255, 255, 255, 240],
+          lineWidthMinPixels: 1.5,
+          radiusMinPixels: 13,
+          radiusMaxPixels: 17,
+          getPosition: (d: any) => [d.lon + (d.offsetX || 0), d.lat + (d.offsetY || 0)],
+          getRadius: 160,
+          getFillColor: [255, 255, 255, 240], // Crisp solid white backdrop disc
+          getLineColor: [30, 41, 59, 160],    // Crisp dark slate outline
         })
       : null
 
-    // 6. Professional Vehicle Symbols (IconLayer)
+    // 6. Crisp Geometric Vehicle Symbols (IconLayer)
     const vehicleIconsLayer = showVehicles
       ? new IconLayer({
-          id: 'vehicle-icons',
-          data: vehicleMarkers,
-          pickable: true,
-          getIcon: (d: any) => ({
-            url: d.iconUrl,
-            width: 64,
-            height: 64,
-            anchorY: 32,
-            anchorX: 32,
-          }),
-          sizeScale: 1,
-          getPosition: (d: any) => [d.lon, d.lat + (d.offsetY || 0)],
-          getSize: (d: any) => (d.count > 1 ? 38 : 32),
-          onClick: ({ object }: any) => {
-            if (object) setSelectedStation(object)
-          },
-        })
+        id: 'vehicle-icons',
+        data: vehicleMarkers,
+        pickable: true,
+        getIcon: (d: any) => ({
+          url: d.iconUrl,
+          width: 36,
+          height: 36,
+          anchorY: 18,
+          anchorX: 18,
+        }),
+        sizeScale: 1,
+        getPosition: (d: any) => [d.lon + (d.offsetX || 0), d.lat + (d.offsetY || 0)],
+        getSize: (d: any) => (d.count > 1 ? 26 : 22),
+        onClick: ({ object }: any) => {
+          if (object) setSelectedStation(object)
+        },
+      })
       : null
 
     // 7. Multi-Vehicle Count Badges (TextLayer)
     const badgeLayer = showVehicles
       ? new TextLayer({
-          id: 'vehicle-count-badges',
-          data: vehicleBadges,
-          pickable: false,
-          getPosition: (d: any) => [d.lon, d.lat],
-          getText: (d: any) => d.text,
-          getSize: 11,
-          getColor: [255, 255, 255, 255],
-          getTextAnchor: 'middle',
-          getAlignmentBaseline: 'center',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          fontWeight: 800,
-          background: true,
-          getBackgroundColor: [15, 23, 42, 230],
-          backgroundPadding: [4, 2],
-        })
+        id: 'vehicle-count-badges',
+        data: vehicleBadges,
+        pickable: false,
+        getPosition: (d: any) => [d.lon, d.lat],
+        getText: (d: any) => d.text,
+        getSize: 10,
+        getColor: [255, 255, 255, 255],
+        getTextAnchor: 'middle',
+        getAlignmentBaseline: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontWeight: 800,
+        background: true,
+        getBackgroundColor: [15, 23, 42, 240],
+        backgroundPadding: [4, 2],
+      })
       : null
 
     return [
@@ -1223,32 +1235,32 @@ export default function App() {
           </div>
 
           {/* Operator Legend & Symbols */}
-          <div style={{ borderTop: '1px solid #1e293b', marginTop: '8px', paddingTop: '8px' }}>
-            <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, marginBottom: '4px' }}>
-              Fleet Symbols
+          <div style={{ borderTop: '1px solid #334155', marginTop: '10px', paddingTop: '10px' }}>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', letterSpacing: '0.05em' }}>
+              Fleet Indications (Shapes & Colors)
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#f8fafc' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <img src="/icons/icon-als.svg" width="18" height="18" alt="ALS" />
-                <span>ALS (ICU)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: '#f8fafc', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <img src="/icons/shape-triangle-als.svg" width="16" height="16" alt="ALS" />
+                <span style={{ color: '#fca5a5' }}><strong style={{ color: '#ef4444' }}>▲</strong> ALS (ICU)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <img src="/icons/icon-bls.svg" width="18" height="18" alt="BLS" />
-                <span>BLS (Basic)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <img src="/icons/shape-square-bls.svg" width="16" height="16" alt="BLS" />
+                <span style={{ color: '#93c5fd' }}><strong style={{ color: '#3b82f6' }}>■</strong> BLS (Basic)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <img src="/icons/icon-bike.svg" width="18" height="18" alt="Bike" />
-                <span>Bike Paramedic</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <img src="/icons/shape-circle-bike.svg" width="16" height="16" alt="Bike" />
+                <span style={{ color: '#fdba74' }}><strong style={{ color: '#f97316' }}>●</strong> Bike Paramedic</span>
               </div>
             </div>
 
             {/* Relocation Legend */}
             {blockMoves.length > 0 && planType === 'goldenhour' && showArcs && (
-              <div style={{ marginTop: '6px', fontSize: '11px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontWeight: 700, color: '#f59e0b' }}>Relocation Move:</span>
-                <span style={{ color: '#10b981', fontWeight: 700 }}>🟢 Origin</span>
-                <span>────►</span>
-                <span style={{ color: '#ef4444', fontWeight: 700 }}>🔴 Destination</span>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(15,23,42,0.6)', padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155' }}>
+                <span style={{ fontWeight: 800, color: '#f59e0b' }}>Shift Relocation:</span>
+                <span style={{ color: '#34d399', fontWeight: 700 }}>🟢 Origin (Start)</span>
+                <span style={{ color: '#94a3b8' }}>────►</span>
+                <span style={{ color: '#f87171', fontWeight: 700 }}>🎯 Target Destination Ring</span>
               </div>
             )}
           </div>
