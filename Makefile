@@ -1,9 +1,19 @@
-.PHONY: all geo travel demand forecast export web test run clean
+.PHONY: all setup data geo travel demand forecast export web test run clean
 
 VENV = .venv/bin/python
 NPM = npm
 
 all: geo travel demand forecast export web
+
+# One-time: Python env (uv) and the two raw downloads (~580 MB). Geofabrik supports resuming with -C -.
+setup:
+	uv venv -p 3.12 .venv && uv pip install -p .venv -r requirements.txt
+	cd web && $(NPM) install
+
+data:
+	mkdir -p data/raw
+	curl -L -C - --retry 5 -o data/raw/southern-zone-latest.osm.pbf https://download.geofabrik.de/asia/india/southern-zone-latest.osm.pbf
+	curl -L --retry 5 -o data/raw/ind_ppp_2020_1km_Aggregated.tif https://data.worldpop.org/GIS/Population/Global_2000_2020_1km/2020/IND/ind_ppp_2020_1km_Aggregated.tif
 
 geo:
 	$(VENV) pipeline/geo.py

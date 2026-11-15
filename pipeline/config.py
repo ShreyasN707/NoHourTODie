@@ -24,7 +24,7 @@ WEB_DATA_DIR = WEB_DIR / "public" / "data"
 STUDY_BBOX: Tuple[float, float, float, float] = (76.2, 12.7, 77.95, 14.45)
 
 # Free-flow speeds (km/h) by OpenStreetMap road class
-# ◐ Source: Standard urban/suburban Indian IRC speeds & OSM routing guidelines
+# ≈ Our estimate per OSM road class (under 1% of Indian OSM roads carry a maxspeed tag)
 ROAD_SPEEDS_KMH: Dict[str, float] = {
     "motorway": 80.0,
     "trunk": 60.0,
@@ -46,7 +46,7 @@ BENGALURU_HOURLY_CONGESTION: List[float] = [
 ]
 
 # Hourly call distribution share in percentage (hours 0–23, sums to 100%)
-# ◐ Source: Calibrated from published 108 emergency EMS temporal call patterns
+# ≈ Our estimate shaped to the reported 7-9 pm 108 peak (◐ 100-120 calls/hour statewide, news)
 HOURLY_CALL_SHARE: List[float] = [
     2.2, 1.8, 1.5, 1.4, 1.5, 2.2, 3.4, 4.6, 5.2, 5.3, 5.2, 5.0,
     4.9, 4.8, 4.9, 5.1, 5.4, 5.8, 6.3, 6.5, 6.0, 4.8, 3.6, 2.6
@@ -63,7 +63,7 @@ PLANNING_BLOCKS = [
 ]
 
 # Call mix definitions and clinical triage rules
-# ◐ Source: CAG Report No. 3 of 2020 on Karnataka 108 Emergency Response Service (2014-2019)
+# ≈ Our estimate (EMRI-style national mix); no Karnataka call-type split is published
 CALL_MIX = {
     "pregnancy":   {"share": 0.30, "needs_als": False, "bike_helps": False},
     "trauma":      {"share": 0.20, "needs_als": False, "bike_helps": True},
@@ -83,19 +83,23 @@ BIKE_ELIGIBLE_CALL_SHARE = 0.56
 # ≈ Combined pre-travel dispatch & roll-out buffer
 PRE_TRAVEL_MIN: float = 3.0
 
-# ◐ Source: Emergency Medicine Association of India & EMRI standard protocols
+# ≈ Our estimate; on-scene time is not published for Karnataka
 ON_SCENE_MEAN_MIN: float = 15.0
 # ◐ Source: CAG Report 3 of 2020: Handover delays in government tertiary/district hospitals
 HANDOVER_MEAN_MIN: float = 20.0
 
+# Critical calls get the nearest free Advanced (ALS) unit only if it arrives within this many minutes of
+# the nearest free unit of any kind; otherwise the nearest unit goes (the C-DAC nearest-free rule). ≈ policy choice
+ALS_EXTRA_MIN: float = 5.0
+
 # Fleet Operational Parameters
-# ◐ Source: CAG Report 3 of 2020: Statewide fleet ~715 ambulances with average 74% operational roadworthiness
+# ◐ News reports (2025): ~715 ambulances statewide, ~530 on the road (~25% under maintenance)
 BASE_AVAILABILITY: float = 0.74
 
 # ≈ Sirens, aggressive lane filtering, and emergency vehicle right-of-way over standard congestion
 AMBULANCE_SPEED_MULTIPLIER: float = 1.15
 
-# ◐ Source: Karnataka Health Department relaunch target for two-wheeler First Responder Bike Ambulances
+# ≈ Our first-help target for bike responders (call to arrival)
 BIKE_TARGET_MIN: float = 10.0
 
 # MILP & Optimization Settings
@@ -135,9 +139,9 @@ class RegionConfig:
 
 
 # Regional Configurations
-# ◐ Source: Bengaluru (urban): Cabinet target 15 min response; NYE 2025 deployment 72 ambulances; 30 relaunch bikes.
+# ◐ Bengaluru (urban): Cabinet target 15-20 min (we test the strict 15); 72 ambulances deployed on NYE 2025 (news); 30 of the 100 relaunched bikes (our assumption).
 # ◐ Source: Tumakuru (rural): Cabinet target 10 min response; 30 ambulances (~4% of state fleet 715); 0 bikes.
-# ◐ Source: Calls per day derived from CAG statewide 2,300 daily trips scaled by 2026 census population projections.
+# ≈ Calls per day: CAG statewide ~2,300 trips/day (41.94 lakh over 5 years) scaled by population share, plus growth.
 REGIONS: Dict[str, RegionConfig] = {
     "blr": RegionConfig(
         name="Greater Bengaluru Area",
@@ -145,11 +149,11 @@ REGIONS: Dict[str, RegionConfig] = {
         h3_res=8,               # ~0.74 km2 hexagon area
         osm_admin_level=10,     # 369 GBA Wards (reorganized Nov 2025)
         zone_label="Ward",
-        target_min=15.0,        # ◐ Cabinet decision Sep 2026: 15-20 min urban target
+        target_min=15.0,        # ◐ Cabinet decision Sep 2026: 15-20 min urban target (strict end)
         calls_per_day=520.0,    # ≈ ~23% of statewide volume based on 13.5M metro pop
-        fleet_ambulances=72,    # ◐ Bengaluru active 108 deployment (NYE 2025 roster)
+        fleet_ambulances=72,    # ◐ 72 deployed in the city on NYE 2025 (news); no official district split
         als_share=0.20,         # ≈ 20% Advanced Life Support (ALS) with ventilators/defibs
-        fleet_bikes=30,         # ◐ Relaunched 108 First Responder Bike Ambulances
+        fleet_bikes=30,         # ≈ our share of the 100 relaunched bike ambulances (◐ news)
         congestion_enabled=True,
         rural=False,
         description="Bengaluru Urban & BBMP/GBA wards with dense congestion and bike paramedics",
@@ -162,7 +166,7 @@ REGIONS: Dict[str, RegionConfig] = {
         zone_label="Taluk",
         target_min=10.0,        # ◐ Cabinet decision Sep 2026: 10 min rural target
         calls_per_day=95.0,     # ≈ ~4% of statewide volume based on 2.7M district pop
-        fleet_ambulances=30,    # ◐ ~4.2% of 715 statewide fleet
+        fleet_ambulances=30,    # ≈ ~4% of the 715 statewide fleet (population share)
         als_share=0.15,         # ≈ 15% Advanced Life Support
         fleet_bikes=0,          # Rural areas rely on 4-wheel ambulances due to distance
         congestion_enabled=False, # Flat 1.1x highway factor

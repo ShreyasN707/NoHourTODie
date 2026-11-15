@@ -11,13 +11,21 @@ GoldenHour is an hourly fleet-planning layer built to sit alongside Karnataka's 
 
 We evaluated emergency ambulance response across 942 urban hexagons in Greater Bengaluru and 2,018 rural hexagons in Tumakuru District using OpenStreetMap road networks, TomTom 2025 traffic congestion patterns, WorldPop 2020 1 km gridded density, and 28 days of simulated call replays.
 
-### Key Operational Findings:
-1. **Dynamic Placement Alone Has Marginal Impact in Bengaluru (+0.2% on 15-Minute Target):**
-   In dense urban Bengaluru, existing 108 ambulances are already parked at 404 government and private hospitals. Because hospital sites naturally correlate with population settlement, moving four-wheeled ambulances to alternative road standbys provides almost no travel-time improvement under heavy rush-hour congestion (average speed 14 km/h).
-2. **Two-Wheeler Bike Ambulances Deliver the Real Clinical Breakthrough (+7.5% First Help within 10 Minutes):**
-   Adding 30 first-responder bike ambulances capable of filtering through urban traffic increases the share of patients receiving emergency medical help within 10 minutes from 45.0% to 52.5%. For cardiac arrests and severe trauma, this first-responder stabilization is what saves lives during the critical golden hour.
-3. **The Cabinet's 10-Minute Rural Target is Mathematically Impossible with Today's Fleet:**
-   In Tumakuru District, the current allocation of 30 ambulances achieves only a 14.9% compliance rate on the Cabinet's 10-minute response target, with a median response time of 23.5 minutes and a 90th-percentile response time of 48.0 minutes. Meeting a 10-minute rural target across 10,600 km² would require at least 75 to 90 ambulances. Setting performance penalty fines of ₹5,000 to ₹10,000 per violation without tripling the fleet would penalize operators for impossible physical geometry.
+### Key Findings (simulated; 28 days of calls replayed; about 74% of the fleet on the road)
+
+| Region | Plan | Reached in time | Median | Slowest 1 in 10 | First help within 10 min |
+|---|---|---|---|---|---|
+| Bengaluru (15 min target, 53 ambulances on the road) | Today (hospitals, by population) | 72.5% | 10.5 min | 23.6 min | 46.4% |
+| | GoldenHour (with 22 bikes) | 69.6% | 11.5 min | 23.5 min | 53.6% |
+| Tumakuru (10 min target, 22 ambulances on the road) | Today | 13.5% | 22.9 min | 45.8 min | 13.5% |
+| | GoldenHour | 17.3% | 21.5 min | 47.8 min | 17.3% |
+
+1. **In Bengaluru, better parking spots alone do not beat parking at hospitals.** The city's 404 hospitals already sit where people live, and every job ends at a hospital anyway.
+2. **Bike first responders are the real gain in Bengaluru:** first help within 10 minutes rises from 46% to 54%.
+3. **The 10-minute rural target is far out of reach with today's fleet.** In Tumakuru, smarter placement lifts on-time arrivals from 13.5% to 17.3%, but even double the fleet reaches only about 29% (fleet-size tab). Penalties should be set only after this is understood.
+4. **Bengaluru needs about 1.25–1.5x today's fleet** to reach 83–88% of calls within 15 minutes.
+
+All numbers come from `web/public/data/` after `make all`. Calls are synthetic (108 call logs are not public), so these are model results, not measurements.
 
 ---
 
@@ -25,11 +33,11 @@ We evaluated emergency ambulance response across 942 urban hexagons in Greater B
 
 Every assumption in GoldenHour is grounded in government records, statutory audit reports, and live traffic measurements:
 
+- **Fleet availability (news reports, 2025):** about 715 ambulances statewide, about 530 (~74%) on the road; ~25% under maintenance.
 - **CAG Report No. 3 of 2020 (Government of Karnataka):**
   - Only 72% of urban 108 ambulance trips met the 20-minute target between 2014 and 2019.
   - Triage took over 3 minutes in 47% of calls; wheels-rolling took over 1 minute in 85% of calls.
   - Over 41.94 lakh trips were conducted statewide over 5 years (~2,300 calls per day).
-  - Out of roughly 715 ambulances statewide, road availability averaged 74% due to maintenance backlogs.
 - **May 2025 State Takeover & May 2026 Command Centre:**
   - The State Department of Health and Family Welfare took direct operational control of 108 from GVK-EMRI in May 2025.
   - A unified command and control centre opened on 25 May 2026, running C-DAC NG-ERSS software with real-time GPS tracking and automated nearest-ambulance dispatch.
@@ -56,9 +64,9 @@ GoldenHour integrates six mathematical and computational methods:
 3. **Graded Coverage Extension:**
    Standard MEXCLP provides zero reward for vehicles arriving beyond the target threshold. We extended the model with graded partial credit (0.40 weight for arrivals within 1.5x target, and 0.20 weight for arrivals within 2.0x target), ensuring the solver penalizes and compresses extreme delays.
 4. **Dijkstra Shortest Paths on OpenStreetMap:**
-   Road network parsed directly from Geofabrik Karnataka extracts using PyOsmium. We retain the largest strongly connected component (1.73 million nodes and 3.58 million directed edges). Shortest paths are precomputed using `scipy.sparse.csgraph.dijkstra` on CSR matrices and transposed CSR matrices (for hospital returns).
-5. **Discrete-Event Simulation (SimPy Principles):**
-   A 28-day trace-driven replay of emergency calls. Dispatches the nearest available ambulance (and bike paramedic when clinically indicated). Units become free at hospital handover upon triage discharge, capturing real-world GPS-tracked return flows.
+   Road network parsed directly from the Geofabrik Southern Zone extract using PyOsmium. We retain the largest strongly connected component (1.73 million nodes and 3.58 million directed edges). Shortest paths are precomputed using `scipy.sparse.csgraph.dijkstra` on CSR matrices and transposed CSR matrices (for hospital returns).
+5. **Discrete-Event Simulation:**
+   A 28-day trace-driven replay of emergency calls. Dispatches the nearest available ambulance (and bike paramedic when clinically indicated). Units become free at hospital handover and can be re-dispatched while driving back to their standby site (GPS-tracked). Advanced units go to critical calls when within 5 minutes of the nearest unit.
 6. **Native LightGBM Poisson Demand Forecasting:**
    Ward-level 4-hour demand predicted using calendar signals, rolling 28-day averages, and weekly lag counts. LightGBM achieves a 0.3507 MAE on Bengaluru ward-blocks, outperforming the historical 4-week moving average baseline (0.3617 MAE).
 7. **Spatial Hexagon Partitioning (Uber H3):**
@@ -74,7 +82,7 @@ GoldenHour integrates six mathematical and computational methods:
 
 ### Paper 2: arXiv 2507.15385 (*Transformer-based Deep Learning Model for Joint Routing and Scheduling*)
 - **Their Gap:** Uses a transformer to predict binary MIP decisions and prune the search space for Gurobi. However, it was evaluated only on a synthetic 13-node grid, achieved only ~64% accuracy, and required commercial solver fallbacks.
-- **Our Answer:** We formulate candidate standby sites as general tokens characterized by catchment population, nearby road exposure, and local congestion. This formulation transfers seamlessly between the 1.73-million-node road network of Greater Bengaluru and the rural highway network of Tumakuru, without commercial solver dependencies.
+- **Our Answer:** We formulate candidate standby sites as general tokens characterized by catchment population, nearby road exposure, and local congestion. Our approach is to make the model work on any set of sites, so it can be trained on one district and used on another, for example between the 1.73-million-node road network of Greater Bengaluru and the rural highway network of Tumakuru, without commercial solver dependencies.
 
 ---
 
@@ -103,17 +111,19 @@ The interactive dashboard is built with Vite, React, TypeScript, Deck.gl, and Ma
 ## 6. How to Run GoldenHour
 
 ### Prerequisites:
-- Python 3.12 (managed via `uv` or system Python)
+- Python 3.12 via `uv`, plus `brew install osmium-tool libomp` on macOS
 - Node.js 18+ and `npm`
 
 ### Quick Start:
 ```bash
 # 1. Clone repository
-git clone https://github.com/super-intelligence/goldenhour.git ~/goldenhour
-cd ~/goldenhour
+git clone https://github.com/ShreyasN707/NoHourTODie.git
+cd NoHourTODie
 
-# 2. Run Python pipeline (processes OSM road graph, demand, and optimization)
-make all
+# 2. One-time setup and data download (~580 MB), then the pipeline
+make setup
+make data
+make geo travel demand forecast export
 
 # 3. Start the Web Dashboard
 cd web

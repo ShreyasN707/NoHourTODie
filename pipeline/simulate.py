@@ -26,6 +26,7 @@ import pandas as pd
 from scipy.optimize import linear_sum_assignment
 
 from pipeline.config import (
+    ALS_EXTRA_MIN,
     AMBULANCE_SPEED_MULTIPLIER,
     BENGALURU_HOURLY_CONGESTION,
     PLANNING_BLOCKS,
@@ -53,39 +54,29 @@ class SimulationResults:
     per_zone: Dict[str, Dict[str, Any]]
 
 
-def link_vehicle_standbys(plans: List[BlockPlan], ss_matrix: np.ndarray) -> np.ndarray:
-    """Link each physical vehicle's standby site across the 6 blocks using linear assignment."""
-    n_amb = int(plans[0].a.sum() + plans[0].b.sum())
-    vehicle_sites = np.zeros((n_amb, 6), dtype=np.int32)
+def _chain(counts_per_block: List[np.ndarray], ss_matrix: np.ndarray) -> np.ndarray:
+    """Give each physical vehicle one standby site per block; consecutive blocks are linked by
+    least-total-driving linear assignment, so a vehicle keeps its spot unless the plan moves it."""
+    homes = [np.repeat(np.arange(len(c)), c) for c in counts_per_block]
+    n = len(homes[0])
+    out = np.zeros((n, len(homes)), dtype=np.int32)
+    if n == 0:
+        return out
+    out[:, 0] = homes[0]
+    for t in range(1, len(homes)):
+        r, c = linear_sum_assignment(ss_matrix[np.ix_(out[:, t - 1], homes[t])])
+        out[r, t] = homes[t][c]
+    return out
 
-    # Initial assignment for block 0
-    tot0 = plans[0].a + plans[0].b
-    curr_sites = []
-    for s in np.where(tot0 > 0)[0]:
-        curr_sites.extend([s] * tot0[s])
-    vehicle_sites[:, 0] = curr_sites[:n_amb]
 
-    # Roll forward across blocks 1 to 5
-    for b in range(1, 6):
-        tot_b = plans[b].a + plans[b].b
-        target_sites = []
-        for s in np.where(tot_b > 0)[0]:
-            target_sites.extend([s] * tot_b[s])
-        target_sites = target_sites[:n_amb]
-
-        # Cost matrix: travel time from vehicle_sites[:, b-1] to target_sites
-        cost = np.zeros((n_amb, n_amb), dtype=np.float32)
-        for i in range(n_amb):
-            s_from = vehicle_sites[i, b - 1]
-            for j in range(n_amb):
-                s_to = target_sites[j]
-                cost[i, j] = ss_matrix[s_from, s_to]
-
-        row_ind, col_ind = linear_sum_assignment(cost)
-        for r, c in zip(row_ind, col_ind):
-            vehicle_sites[r, b] = target_sites[c]
-
-    return vehicle_sites
+def link_vehicle_standbys(plans: List[BlockPlan], ss_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Chain Advanced (ALS) and Basic (BLS) units separately, so the simulated ALS units are the ones
+    the plan placed as ALS. Returns (standby site per vehicle per block, is_als per vehicle)."""
+    als = _chain([p.a for p in plans], ss_matrix)
+    bls = _chain([p.b for p in plans], ss_matrix)
+    sites = np.vstack([als, bls])
+    is_als = np.r_[np.ones(len(als), bool), np.zeros(len(bls), bool)]
+    return sites, is_als
 
 
 def simulate_plan(
@@ -104,8 +95,6 @@ def simulate_plan(
     rng = np.random.default_rng(SEED)
 
     target_min = cfg.target_min
-    n_amb = int(plans[0].a.sum() + plans[0].b.sum())
-    n_als = int(round(cfg.als_share * n_amb))
     n_bikes = int(plans[0].y.sum())
 
     # Map cells to index 0..N-1
@@ -123,7 +112,8 @@ def simulate_plan(
     cell_nearest_hosp = hosp_sites[nearest_hosp_local]
 
     # Daily vehicle standby chain
-    vehicle_standbys = link_vehicle_standbys(plans, ss)
+    vehicle_standbys, amb_is_als = link_vehicle_standbys(plans, ss)
+    n_amb = len(amb_is_als)
 
     # Filter calls to last sim_days
     max_day = df_calls["day_of_year"].max()
@@ -147,15 +137,13 @@ def simulate_plan(
     # is_als (bool)
     amb_free_time = np.zeros(n_amb, dtype=np.float64)
     amb_curr_site = vehicle_standbys[:, 0].copy()
-    amb_is_als = np.zeros(n_amb, dtype=bool)
-    amb_is_als[:n_als] = True
+    # Time each unit is back at its standby site; until then it sits at the hospital it just left
+    amb_home_time = np.zeros(n_amb, dtype=np.float64)
 
     # Bike state
     bike_free_time = np.zeros(n_bikes, dtype=np.float64)
-    bike_sites = []
-    for s in np.where(plans[0].y > 0)[0]:
-        bike_sites.extend([s] * plans[0].y[s])
-    bike_curr_site = np.array(bike_sites[:n_bikes], dtype=np.int32) if n_bikes > 0 else np.zeros(0, dtype=np.int32)
+    # Bikes follow the plan block by block too (chained like the ambulances)
+    bike_standbys = _chain([p.y for p in plans], ss)
 
     hourly_factors = (
         list(BENGALURU_HOURLY_CONGESTION) if cfg.congestion_enabled else [1.10] * 24
@@ -186,7 +174,7 @@ def simulate_plan(
             free_bikes = np.where(bike_free_time <= t_call)[0]
             if len(free_bikes) > 0:
                 # Drive times from current bike sites
-                b_sites = bike_curr_site[free_bikes]
+                b_sites = bike_standbys[free_bikes, b_id]
                 b_drive_mins = fwd[b_sites, c_idx] * (1.0 + 0.4 * (factor - 1.0)) / 60.0
                 best_b_local = np.argmin(b_drive_mins)
                 best_b_idx = free_bikes[best_b_local]
@@ -202,10 +190,11 @@ def simulate_plan(
         free_ambs = np.where(amb_free_time <= t_call)[0]
         if len(free_ambs) > 0:
             # Idle units: update location to scheduled standby for block b_id
+            # Units that have finished driving back sit at the current block's standby site;
+            # units still on the way back are dispatched from the hospital they left (GPS-tracked)
             for v in free_ambs:
-                # If vehicle was idle at hospital for a long time, it has returned to standby
-                # We model its standby site for the current block
-                amb_curr_site[v] = vehicle_standbys[v, b_id]
+                if amb_home_time[v] <= t_call:
+                    amb_curr_site[v] = vehicle_standbys[v, b_id]
 
             # Compute drive times from vehicle current sites
             v_sites = amb_curr_site[free_ambs]
@@ -214,8 +203,9 @@ def simulate_plan(
             # Prioritize ALS if critical
             if needs_als:
                 als_mask = amb_is_als[free_ambs]
-                if np.any(als_mask):
-                    als_free_idx = np.where(als_mask)[0]
+                als_free_idx = np.where(als_mask)[0]
+                best_any = int(np.argmin(drive_mins))
+                if len(als_free_idx) and drive_mins[als_free_idx].min() <= drive_mins[best_any] + ALS_EXTRA_MIN:
                     best_als_sub = np.argmin(drive_mins[als_free_idx])
                     chosen_v = free_ambs[als_free_idx[best_als_sub]]
                     chosen_drive = drive_mins[als_free_idx[best_als_sub]]
@@ -256,6 +246,10 @@ def simulate_plan(
         # Unit becomes FREE at hospital immediately at handover finish
         amb_free_time[chosen_v] = t_call + (total_job_min * 60.0)
         amb_curr_site[chosen_v] = dest_hosp
+        # then drives back to its standby site for the block it is in at that moment
+        free_hour = int((test_calls["hour"].iloc[k] + total_job_min / 60.0) % 24)
+        home_site = vehicle_standbys[chosen_v, next(b["id"] for b in PLANNING_BLOCKS if free_hour in b["hours"])]
+        amb_home_time[chosen_v] = amb_free_time[chosen_v] + ss[dest_hosp, home_site] * amb_speed_fact * 60.0
 
     # Aggregate metrics
     within_target = (response_times <= target_min).mean() * 100.0

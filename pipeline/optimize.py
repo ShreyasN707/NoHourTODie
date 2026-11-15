@@ -27,6 +27,7 @@ from scipy.optimize import Bounds, LinearConstraint, linear_sum_assignment, milp
 
 from pipeline.config import (
     AMBULANCE_SPEED_MULTIPLIER,
+    BASE_AVAILABILITY,
     BENGALURU_HOURLY_CONGESTION,
     CRITICAL_CALL_SHARE,
     BIKE_ELIGIBLE_CALL_SHARE,
@@ -41,6 +42,11 @@ from pipeline.config import (
     REGIONS,
     WARD_MIN_COVER_FLOOR,
 )
+
+
+def on_road(n_vehicles: int, availability: float = BASE_AVAILABILITY) -> int:
+    """Vehicles actually on the road: ~74% of the 108 fleet is available (◐ news reports, 2025)."""
+    return max(1, int(round(n_vehicles * availability))) if n_vehicles > 0 else 0
 
 
 @dataclass
@@ -212,10 +218,11 @@ def solve_single_mexclp(
     c[idx_za : idx_za + n_cells] = -lam * w_als
     c[idx_u : idx_u + n_cells] = -lam * w_bike
 
-    # Equity penalty: 5.0 * ward_weight * s_w
-    for w, widx in ward_to_idx.items():
-        w_weight = (ward_tot_lam.get(w, 1.0) / df_cells["pop"].sum()) * tot_lam
-        c[idx_sw + widx] = 5.0 * max(0.1, w_weight)
+    # Equity penalty: a ward's shortfall costs 5x its own expected calls, so it outweighs any coverage
+    # gain elsewhere but a near-empty ward cannot pull the whole fleet towards it
+    zone_idx = df_cells["zone"].map(ward_to_idx).values
+    ward_lam = np.bincount(zone_idx, weights=lam, minlength=n_wards)
+    c[idx_sw : idx_sw + n_wards] = 5.0 * ward_lam
 
     # Move penalties (0.01 per move to avoid gratuitous swaps)
     if has_prev:
@@ -350,15 +357,14 @@ def solve_single_mexclp(
     # 6. Ward soft equity floor:
     # (1 / |I_w|) * sum_{i in I_w} z1_i + s_w >= WARD_MIN_COVER_FLOOR (0.50)
     ward_rows = sp.dok_matrix((n_wards, n_vars), dtype=np.float64)
-    for i, crow in df_cells.iterrows():
-        w = crow["zone"]
-        widx = ward_to_idx[w]
-        count = ward_cell_counts[w]
-        ward_rows[widx, idx_z1 + i] += 1.0 / count
+    for i in range(n_cells):  # demand-weighted share of the ward covered in time
+        widx = zone_idx[i]
+        if ward_lam[widx] > 0:
+            ward_rows[widx, idx_z1 + i] += lam[i] / ward_lam[widx]
     for widx in range(n_wards):
         ward_rows[widx, idx_sw + widx] = 1.0
     A_rows.append(ward_rows.tocsr())
-    rhs_lb.extend([WARD_MIN_COVER_FLOOR] * n_wards)
+    rhs_lb.extend([WARD_MIN_COVER_FLOOR if ward_lam[w] > 0 else 0.0 for w in range(n_wards)])
     rhs_ub.extend([np.inf] * n_wards)
 
     # 7. Move constraints against prev plan:
@@ -420,8 +426,10 @@ def solve_single_mexclp(
             },
         )
 
-    # Extract solution
-    sol = res.x if (res.x is not None and len(res.x) == n_vars) else np.zeros(n_vars)
+    # Never invent a plan: a failed solve raises, and the caller falls back to something real
+    if res.x is None or len(res.x) != n_vars:
+        raise RuntimeError(f"HiGHS found no solution for {reg_code} block {block_id}: {res.message}")
+    sol = res.x
     a_sol = np.round(sol[idx_a : idx_a + n_sites]).astype(np.int32)
     b_sol = np.round(sol[idx_b : idx_b + n_sites]).astype(np.int32)
     y_sol = np.round(sol[idx_y : idx_y + n_sites]).astype(np.int32)
@@ -509,7 +517,7 @@ def compute_expected_cover(
     return graded_cov.astype(np.float32), nearest_min.astype(np.float32), bike_cov
 
 
-def compute_baseline(reg_code: str) -> List[BlockPlan]:
+def compute_baseline(reg_code: str, availability: float = BASE_AVAILABILITY) -> List[BlockPlan]:
     """Baseline (Today per CAG): ambulances at hospitals proportional to catchment population."""
     cfg = REGIONS[reg_code]
     df_cells = pd.read_parquet(PROCESSED_DIR / f"cells_{reg_code}.parquet")
@@ -519,7 +527,7 @@ def compute_baseline(reg_code: str) -> List[BlockPlan]:
 
     n_sites = len(df_sites)
     n_cells = len(df_cells)
-    fleet = cfg.fleet_ambulances
+    fleet = on_road(cfg.fleet_ambulances, availability)
     n_als = int(round(cfg.als_share * fleet))
 
     # Hospital sites
@@ -605,7 +613,7 @@ def compute_baseline(reg_code: str) -> List[BlockPlan]:
     return plans
 
 
-def solve_static_plan(reg_code: str) -> List[BlockPlan]:
+def solve_static_plan(reg_code: str, availability: float = BASE_AVAILABILITY) -> List[BlockPlan]:
     """Static Plan: One fixed deployment all day, optimized for all-day mean demand and peak traffic, no bikes."""
     cfg = REGIONS[reg_code]
     df_cells = pd.read_parquet(PROCESSED_DIR / f"cells_{reg_code}.parquet")
@@ -623,6 +631,7 @@ def solve_static_plan(reg_code: str) -> List[BlockPlan]:
     bike_drive_min = peak_drive_min.copy()
 
     mean_lam = df_lam["all_day_mean"].values
+    n_amb = on_road(cfg.fleet_ambulances, availability)
 
     print(f"[optimize] Solving Static Plan for {reg_code} (All-day mean demand, peak traffic, no bikes)...")
     t0 = time.time()
@@ -634,7 +643,7 @@ def solve_static_plan(reg_code: str) -> List[BlockPlan]:
         bike_drive_min=bike_drive_min,
         df_cells=df_cells,
         df_sites=df_sites,
-        fleet_ambulances=cfg.fleet_ambulances,
+        fleet_ambulances=n_amb,
         als_share=cfg.als_share,
         fleet_bikes=0,  # Static plan does not use bikes
         time_limit_sec=40.0,
@@ -649,7 +658,7 @@ def solve_static_plan(reg_code: str) -> List[BlockPlan]:
         drive_min = fwd * factor / (AMBULANCE_SPEED_MULTIPLIER * 60.0)
         bike_drive_min = fwd * (1.0 + 0.4 * (factor - 1.0)) / 60.0
         lam = df_lam[f"block_{b_id}"].values
-        q = compute_busy_fraction(lam, drive_min, cfg.fleet_ambulances)
+        q = compute_busy_fraction(lam, drive_min, n_amb)
 
         exp_cov, nearest_m, bike_cov = compute_expected_cover(
             plan_peak.a, plan_peak.b, plan_peak.y, drive_min, bike_drive_min, q, cfg.target_min
@@ -676,11 +685,13 @@ def solve_goldenhour_rolling(
     fleet_bikes: Optional[int] = None,
     demand_scale: float = 1.0,
     traffic_scale: float = 1.0,
+    availability: float = BASE_AVAILABILITY,
 ) -> List[BlockPlan]:
     """Solve GoldenHour multi-period rolling horizon MILP with move smoothing."""
     cfg = REGIONS[reg_code]
-    n_amb = fleet_ambulances if fleet_ambulances is not None else cfg.fleet_ambulances
-    n_bikes = fleet_bikes if fleet_bikes is not None else cfg.fleet_bikes
+    # fleet_* are the physical fleet; only the available share is planned
+    n_amb = on_road(fleet_ambulances if fleet_ambulances is not None else cfg.fleet_ambulances, availability)
+    n_bikes = on_road(fleet_bikes if fleet_bikes is not None else cfg.fleet_bikes, availability)
     move_cap = int(np.floor(MOVES_CAP_FRACTION * n_amb))
 
     df_cells = pd.read_parquet(PROCESSED_DIR / f"cells_{reg_code}.parquet")
@@ -714,63 +725,30 @@ def solve_goldenhour_rolling(
     t_start = time.time()
     plans: Dict[int, BlockPlan] = {}
 
+    def solve_block(b_id: int, prev=None, nxt=None, time_limit_sec: float = 30.0) -> BlockPlan:
+        kw = dict(reg_code=reg_code, block_id=b_id, lam=block_lam[b_id], drive_min=block_drive[b_id],
+                  bike_drive_min=block_bike_drive[b_id], df_cells=df_cells, df_sites=df_sites,
+                  fleet_ambulances=n_amb, als_share=cfg.als_share, fleet_bikes=n_bikes,
+                  time_limit_sec=time_limit_sec)
+        try:
+            return solve_single_mexclp(**kw, prev_tot_plan=prev, next_tot_plan=nxt,
+                                       move_cap=move_cap if (prev is not None or nxt is not None) else None)
+        except RuntimeError as e:  # move caps can make a block too hard; drop them rather than fail
+            print(f"[optimize] {e}. Re-solving block {b_id} without move caps.")
+            return solve_single_mexclp(**kw)
+
     # Step 1: Solve Block 4 (Evening Peak) unconstrained
     print("[optimize] Solving Block 4 (Evening Peak, 16:00-20:00) unconstrained...")
-    plans[4] = solve_single_mexclp(
-        reg_code=reg_code,
-        block_id=4,
-        lam=block_lam[4],
-        drive_min=block_drive[4],
-        bike_drive_min=block_bike_drive[4],
-        df_cells=df_cells,
-        df_sites=df_sites,
-        fleet_ambulances=n_amb,
-        als_share=cfg.als_share,
-        fleet_bikes=n_bikes,
-        time_limit_sec=30.0,
-    )
+    plans[4] = solve_block(4)
 
-    # Step 2: Forward roll: Block 5 -> 0 -> 1 -> 2 -> 3
-    solve_order = [(5, 4), (0, 5), (1, 0), (2, 1), (3, 2)]
-    for curr_b, prev_b in solve_order:
-        prev_plan_tot = plans[prev_b].a + plans[prev_b].b
+    # Step 2: Forward roll: Block 5 -> 0 -> 1 -> 2 -> 3, each capped against the block before
+    for curr_b, prev_b in [(5, 4), (0, 5), (1, 0), (2, 1), (3, 2)]:
         print(f"[optimize] Solving Block {curr_b} move-capped against Block {prev_b}...")
-        plans[curr_b] = solve_single_mexclp(
-            reg_code=reg_code,
-            block_id=curr_b,
-            lam=block_lam[curr_b],
-            drive_min=block_drive[curr_b],
-            bike_drive_min=block_bike_drive[curr_b],
-            df_cells=df_cells,
-            df_sites=df_sites,
-            fleet_ambulances=n_amb,
-            als_share=cfg.als_share,
-            fleet_bikes=n_bikes,
-            prev_tot_plan=prev_plan_tot,
-            move_cap=move_cap,
-            time_limit_sec=25.0,
-        )
+        plans[curr_b] = solve_block(curr_b, prev=plans[prev_b].a + plans[prev_b].b, time_limit_sec=25.0)
 
-    # Step 3: Re-solve Block 4 capped against both Block 3 and Block 5
+    # Step 3: Re-solve Block 4 capped against both Block 3 and Block 5 (closes the daily loop)
     print("[optimize] Re-solving Block 4 constrained against Block 3 and Block 5 (closing cyclic shift loop)...")
-    plan_3_tot = plans[3].a + plans[3].b
-    plan_5_tot = plans[5].a + plans[5].b
-    plans[4] = solve_single_mexclp(
-        reg_code=reg_code,
-        block_id=4,
-        lam=block_lam[4],
-        drive_min=block_drive[4],
-        bike_drive_min=block_bike_drive[4],
-        df_cells=df_cells,
-        df_sites=df_sites,
-        fleet_ambulances=n_amb,
-        als_share=cfg.als_share,
-        fleet_bikes=n_bikes,
-        prev_tot_plan=plan_3_tot,
-        next_tot_plan=plan_5_tot,
-        move_cap=move_cap,
-        time_limit_sec=30.0,
-    )
+    plans[4] = solve_block(4, prev=plans[3].a + plans[3].b, nxt=plans[5].a + plans[5].b)
 
     ordered_plans = [plans[i] for i in range(6)]
     print(f"[optimize] Rolling horizon for {reg_code} finished in {time.time() - t_start:.1f}s.")

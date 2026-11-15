@@ -109,24 +109,10 @@ def run_stress_tests(
     sim_base_traf = simulate_plan(reg_code, base_plans, df_calls, df_cells, df_sites, fwd_traffic, back_traffic, ss)
     sim_gh_traf = simulate_plan(reg_code, gh_plans, df_calls, df_cells, df_sites, fwd_traffic, back_traffic, ss)
 
-    # 4. Fleet 60% (Re-planned)
-    print("[export] Stress test: Fleet 60% (Re-planned)...")
-    fleet_60_amb = max(4, int(round(cfg.fleet_ambulances * 0.60)))
-    fleet_60_bikes = max(0, int(round(cfg.fleet_bikes * 0.60)))
-    try:
-        gh_plans_60 = solve_goldenhour_rolling(reg_code, fleet_ambulances=fleet_60_amb, fleet_bikes=fleet_60_bikes)
-    except Exception as e:
-        print(f"[export] Warning: Re-plan 60% failed ({e}), falling back to scaled plan.")
-        gh_plans_60 = gh_plans
-
-    # Scaled baseline
-    base_plans_60 = compute_baseline(reg_code)
-    # adjust fleet count in baseline plans
-    for p in base_plans_60:
-        tot = p.a + p.b
-        scale = fleet_60_amb / tot.sum()
-        p.b = np.round(p.b * scale).astype(np.int32)
-        p.a = np.round(p.a * scale).astype(np.int32)
+    # 4. Only 60% of the fleet on the road (instead of ~74%): both plans are re-planned with fewer vehicles
+    print("[export] Stress test: only 60% of the fleet on the road (re-planned)...")
+    gh_plans_60 = solve_goldenhour_rolling(reg_code, availability=0.60)
+    base_plans_60 = compute_baseline(reg_code, availability=0.60)
 
     sim_base_60 = simulate_plan(reg_code, base_plans_60, df_calls, df_cells, df_sites, fwd, back, ss)
     sim_gh_60 = simulate_plan(reg_code, gh_plans_60, df_calls, df_cells, df_sites, fwd, back, ss)
@@ -134,7 +120,7 @@ def run_stress_tests(
     return [
         {
             "name": "Standard Operations",
-            "description": "Baseline fleet (100%) and historical traffic patterns",
+            "description": "About 74% of the fleet on the road, normal traffic and demand",
             "baseline_within_pct": sim_base_norm.within_target_pct,
             "goldenhour_within_pct": sim_gh_norm.within_target_pct,
             "baseline_median": sim_base_norm.median_min,
@@ -167,7 +153,7 @@ def run_stress_tests(
         },
         {
             "name": "Fleet Breakdown (60% Available)",
-            "description": "Severe maintenance outage: 40% fleet off the road",
+            "description": "Only 60% of the fleet on the road (instead of ~74%); both plans re-planned",
             "baseline_within_pct": sim_base_60.within_target_pct,
             "goldenhour_within_pct": sim_gh_60.within_target_pct,
             "baseline_median": sim_base_60.median_min,
@@ -181,56 +167,32 @@ def run_stress_tests(
 
 def compute_fleet_size_curve(
     reg_code: str,
+    df_calls: pd.DataFrame,
     df_cells: pd.DataFrame,
     df_sites: pd.DataFrame,
-    df_lam: pd.DataFrame,
     fwd: np.ndarray,
+    back: np.ndarray,
+    ss: np.ndarray,
 ) -> List[Dict[str, Any]]:
-    """Compute fleet size sensitivity curve at 0.75x, 1.0x, 1.25x, 1.5x, 2.0x."""
+    """How many vehicles does the region need? Re-plan with GoldenHour at 0.75x-2x today's fleet and
+    replay the same 4 weeks of calls. Uses the same simulation as every other number on the dashboard."""
     cfg = REGIONS[reg_code]
     print(f"[export] Computing fleet-size curve for {reg_code}...")
-
-    hourly_factors = (
-        list(BENGALURU_HOURLY_CONGESTION) if cfg.congestion_enabled else [1.10] * 24
-    )
-    peak_factor = float(np.mean([hourly_factors[h] for h in PLANNING_BLOCKS[4]["hours"]]))
-    drive_min = fwd * peak_factor / (AMBULANCE_SPEED_MULTIPLIER * 60.0)
-    bike_drive_min = fwd * (1.0 + 0.4 * (peak_factor - 1.0)) / 60.0
-    lam = df_lam["block_4"].values
-
-    multipliers = [0.75, 1.0, 1.25, 1.5, 2.0]
     curve = []
-
-    for m in multipliers:
-        fleet_size = max(4, int(round(cfg.fleet_ambulances * m)))
+    for m in [0.75, 1.0, 1.25, 1.5, 2.0]:
+        fleet_size = int(round(cfg.fleet_ambulances * m))
         bike_size = int(round(cfg.fleet_bikes * m))
-        try:
-            plan = solve_single_mexclp(
-                reg_code=reg_code,
-                block_id=4,
-                lam=lam,
-                drive_min=drive_min,
-                bike_drive_min=bike_drive_min,
-                df_cells=df_cells,
-                df_sites=df_sites,
-                fleet_ambulances=fleet_size,
-                als_share=cfg.als_share,
-                fleet_bikes=bike_size,
-                time_limit_sec=20.0,
-            )
-            # Weighted expected cover
-            mean_cov = float((plan.expected_cover * lam).sum() / lam.sum() * 100.0)
-        except Exception as e:
-            print(f"[export] Warning: Fleet solve {m}x failed ({e}).")
-            mean_cov = 70.0 * (m ** 0.3)
-
+        plans = solve_goldenhour_rolling(reg_code, fleet_ambulances=fleet_size, fleet_bikes=bike_size)
+        sim = simulate_plan(reg_code, plans, df_calls, df_cells, df_sites, fwd, back, ss)
         curve.append({
             "multiplier": m,
-            "ambulances": fleet_size,
+            "ambulances": fleet_size,          # physical fleet
+            "on_road": int(plans[0].a.sum() + plans[0].b.sum()),
             "bikes": bike_size,
-            "expected_cover_pct": round(mean_cov, 1),
+            "within_target_pct": sim.within_target_pct,
+            "median_min": sim.median_min,
+            "p90_min": sim.p90_min,
         })
-
     return curve
 
 
@@ -335,7 +297,7 @@ def export_region(reg_code: str):
         "static": package_scenario(static_plans, sim_static),
         "goldenhour": package_scenario(gh_plans, sim_gh, gh_moves),
         "stress_tests": run_stress_tests(reg_code, base_plans, gh_plans, df_calls, df_cells, df_sites, fwd, back, ss),
-        "fleet_curve": compute_fleet_size_curve(reg_code, df_cells, df_sites, df_lam, fwd),
+        "fleet_curve": compute_fleet_size_curve(reg_code, df_calls, df_cells, df_sites, fwd, back, ss),
     }
 
     out_scenarios = WEB_DATA_DIR / f"scenarios_{reg_code}.json"
@@ -371,13 +333,19 @@ def export_metadata():
                 "symbol": "◐",
                 "label": "Government Report",
                 "source": "CAG Report No. 3 of 2020 on Karnataka 108 GVK-EMRI",
-                "details": "72% urban trips met 20-min target; 47% triage >3m; 85% roll-out >1m; 74% fleet availability.",
+                "details": "72% of urban trips met the 20-min target (2014-19); triage over 3 min in 47% of calls; roll-out over 1 min in 85%; 41.94 lakh trips in 5 years.",
+            },
+            {
+                "symbol": "◐",
+                "label": "Fleet Availability",
+                "source": "News reports (2025)",
+                "details": "About 715 ambulances statewide, about 530 on the road (~74%); about 25% under maintenance.",
             },
             {
                 "symbol": "◐",
                 "label": "Cabinet Decision",
                 "source": "Karnataka State Cabinet (Sep 2026)",
-                "details": "Approved privatization with 10-minute rural and 15-minute urban response targets and performance penalties.",
+                "details": "Approved privatising field operations with targets of 10 min rural and 15-20 min urban, and fines of Rs 5,000-10,000 (Daijiworld, News Karnataka). No tender document found yet.",
             },
             {
                 "symbol": "◐",
