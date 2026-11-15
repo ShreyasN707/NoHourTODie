@@ -539,3 +539,327 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 13px;
   color: var(--text-muted);
 }
+
+/* ---- Ambulance Placement Markers ---- */
+.amb-marker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+  transition: transform 0.15s ease;
+  user-select: none;
+}
+.amb-marker-wrap:hover {
+  transform: scale(1.25);
+  z-index: 100;
+}
+.amb-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #1e293b;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.amb-badge.als {
+  border-color: #ef4444;
+}
+.amb-badge.bls {
+  border-color: #3b82f6;
+}
+.amb-badge.bike {
+  border-color: #f97316;
+}
+.amb-badge img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.amb-count {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 99px;
+  border: 1px solid #ffffff;
+}
+
+/* ---- Hexagon Grid View Selectors ---- */
+.hex-view-group {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+.hex-view-btn {
+  flex: 1;
+  padding: 5px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+.hex-view-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.hex-view-btn.active {
+  color: #000000;
+  background: var(--accent);
+  font-weight: 700;
+}
+
+/* ---- Floating Map Controls / Legend ---- */
+.map-floating-panel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(26, 29, 39, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 8px 12px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  font-size: 11px;
+}
+.map-view-toggle {
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  gap: 2px;
+}
+.map-view-toggle button {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: transparent;
+}
+.map-view-toggle button.active {
+  color: #000000;
+  background: var(--accent);
+}
+.map-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.map-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* ---- Live Moving Ambulance Markers ---- */
+.moving-amb-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8));
+  user-select: none;
+  transition: transform 0.1s ease;
+  z-index: 60;
+}
+.moving-amb-container:hover {
+  transform: scale(1.3);
+  z-index: 120;
+}
+.moving-amb-badge-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  margin-bottom: 2px;
+}
+.moving-amb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: sirenFlash 0.6s infinite alternate;
+}
+.moving-amb-dot.als {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+.moving-amb-dot.bls {
+  background: #3b82f6;
+  box-shadow: 0 0 8px #3b82f6;
+}
+.moving-amb-dot.bike {
+  background: #f97316;
+  box-shadow: 0 0 8px #f97316;
+}
+.moving-amb-icon-wrap {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #0f172a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.moving-amb-icon-wrap.als { border-color: #ef4444; }
+.moving-amb-icon-wrap.bls { border-color: #3b82f6; }
+.moving-amb-icon-wrap.bike { border-color: #f97316; }
+.moving-amb-icon-wrap img {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.siren-beacon {
+  position: absolute;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: beaconPulse 0.8s infinite;
+}
+.siren-beacon.als { background: #ef4444; }
+.siren-beacon.bls { background: #3b82f6; }
+.siren-beacon.bike { background: #f97316; }
+
+@keyframes sirenFlash {
+  0% { opacity: 0.3; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.3); }
+}
+@keyframes beaconPulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ---- Realtime Live Moving Ambulances ---- */
+.moving-ambulance-marker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  z-index: 70;
+  user-select: none;
+  pointer-events: auto;
+}
+.moving-ambulance-marker:hover {
+  transform: scale(1.3);
+  z-index: 150;
+}
+.moving-amb-icon {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.9), 0 3px 8px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+.moving-ambulance-marker.bls .moving-amb-icon {
+  border-color: #3b82f6;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.9), 0 3px 8px rgba(0, 0, 0, 0.6);
+}
+.moving-ambulance-marker.bike .moving-amb-icon {
+  border-color: #f97316;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.9), 0 3px 8px rgba(0, 0, 0, 0.6);
+}
+.moving-amb-icon img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.moving-amb-label {
+  margin-top: 2px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+}
+.moving-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 1s infinite;
+}
+.siren-pulse-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.5);
+  animation: sirenPing 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+.moving-ambulance-marker.bls .siren-pulse-ring {
+  background: rgba(59, 130, 246, 0.5);
+}
+.moving-ambulance-marker.bike .siren-pulse-ring {
+  background: rgba(249, 115, 22, 0.5);
+}
+@keyframes sirenPing {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
