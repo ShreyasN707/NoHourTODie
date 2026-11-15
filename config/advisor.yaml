@@ -1,0 +1,324 @@
+# Destination Advisor (module B) configuration.
+#
+# Every tunable value is a param: {value, provenance, basis}.
+#   provenance: REAL | REAL_DERIVED | SIMULATED | PLACEHOLDER
+#   basis:      citation, method, or "TODO: source"
+# The loader (src/advisor/config.py) refuses to start if any param lacks provenance or basis.
+# A value of null means "not set yet": the code path that needs it is disabled and the
+# recommendation's reason code says so. Nothing here has clinical sign-off yet (spec §4 guardrails).
+
+scoring:
+  transfer_delay_min:
+    value: 50
+    provenance: PLACEHOLDER
+    basis: "Spec §4: placeholder 45-60 min lost moving on to the next hospital. 50 is the worked-example value."
+  ed_wait_by_status_min:
+    value: {green: 5, amber: 15, red: 30}
+    provenance: PLACEHOLDER
+    basis: "Spec §4 fallback lookup when no gate-dwell data exists; to be calibrated from 108 GPS dwell logs."
+  ed_status_when_unknown:
+    value: amber
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Design choice: assume 'busy' rather than 'free' when a hospital has reported nothing."
+  live_status_max_age_min:
+    value: 60
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Live tier refreshes in minutes (spec §5); older reports are treated as stale and ignored."
+  pessimistic_travel_quantile:
+    value: 0.8
+    provenance: PLACEHOLDER
+    basis: "Spec §4/§6: rank time-critical patients on ~80th percentile travel time, not the mean."
+  lambda_by_category:
+    value:
+      stemi: 0.0
+      stroke: 0.0
+      severe_trauma: 0.0
+      obstetric: 0.0
+      paediatric: 0.0
+      arrest_airway: 0.0
+      low_acuity: 0.5
+    provenance: PLACEHOLDER
+    basis: "Spec §4: lambda = 0 for time-critical patients (never trade a critical patient for fleet convenience); low acuity placeholder 0.5."
+  low_acuity_travel_cap_min:
+    value: null
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Spec §4 requires a maximum travel-time cap for load-balanced low-acuity patients but gives no figure. Null = cap disabled."
+
+reliability:
+  prior_rejects:
+    value: 1
+    provenance: PLACEHOLDER
+    basis: "Beta-style prior (spec §4). Prior mean 1/10 = 0.1 matches the spec's worked-example P(cannot treat) for a confirmed PCI hub. TODO: calibrate from accept/reject logs."
+  prior_total:
+    value: 10
+    provenance: PLACEHOLDER
+    basis: "Prior strength: how many observations before a hospital's own record dominates. TODO: source."
+  decay_half_life_days:
+    value: 30
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Data-age decay (spec §5): an accept/reject this old counts half as much as one today."
+
+travel:
+  pessimistic_multiplier_p80:
+    value: 1.25
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Ratio of p80 to mean travel time, used until the hourly speed profile is fitted from a week of sampled routing-API times (REAL_DERIVED, spec §6)."
+  detour_factor:
+    value: 1.4
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Road distance / straight-line distance, used only by the haversine fallback before the OSM graph is wired in."
+  fallback_free_flow_kmh:
+    value: 38.0
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Haversine fallback has no road class; uses GoldenHour's 'secondary' class speed (pipeline/config.py ROAD_SPEEDS_KMH) as an average urban road."
+  ambulance_speed_multiplier:
+    value: 1.15
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Copied from GoldenHour pipeline/config.py (marked as an estimate there). Spec §6: must become ambulance, not car, speeds once 108 GPS logs arrive."
+  hourly_congestion:
+    value: [1.15, 1.10, 1.10, 1.10, 1.15, 1.30, 1.60, 2.00, 2.40, 2.50, 2.20, 2.00,
+            1.90, 1.90, 2.00, 2.10, 2.30, 2.50, 2.60, 2.40, 2.10, 1.80, 1.50, 1.30]
+    provenance: PLACEHOLDER
+    basis: "Travel-time multiplier over free flow, hours 0-23. Copied from GoldenHour pipeline/config.py BENGALURU_HOURLY_CONGESTION, hand-shaped to TomTom Traffic Index 2025 Bengaluru aggregates (peak ~2.6x). Not fitted; replace with REAL_DERIVED multipliers from a week of sampled routing-API times (spec §6)."
+
+passive:
+  hour_band_hours:
+    value: 4
+    provenance: PLACEHOLDER
+    basis: "Width of the hour band for rolling gate-dwell averages. Matches GoldenHour's six 4-hour planning blocks. TODO: revisit once 108 logs show the real daily pattern."
+  min_dwell_samples:
+    value: 5
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Minimum dwell records in a hospital/hour band before its mean replaces the ED-status lookup."
+  dwell_window_days:
+    value: 28
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Rolling window for gate-dwell averages; 28 days matches GoldenHour's replay length."
+
+rules:
+  chest_pain_without_ecg_as_stemi:
+    value: true
+    provenance: PLACEHOLDER
+    basis: "Design choice pending clinical sign-off: with no ECG, route suspected ACS as STEMI (over-triage is the safer error). Spec §4 requires the advisor to work from EMT input alone."
+  stemi_fmc_to_pci_window_min:
+    value: 120
+    provenance: PLACEHOLDER
+    basis: "Spec §4: PCI hub if first-contact-to-PCI is within about 120 min; otherwise thrombolysis then transfer (pharmacoinvasive)."
+  stroke_lvo_score_cutoff:
+    value: null
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Spec §4: locally tuned cut-off. RACECAT found no outcome difference between strategies, so no default. Null = LVO bypass disabled."
+  stroke_thrombectomy_extra_travel_limit_min:
+    value: null
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Spec §4: do not hard-code the bypass threshold. Null = LVO bypass disabled."
+  trauma_max_travel_min:
+    value: null
+    provenance: PLACEHOLDER
+    basis: "TODO: source. 'Highest-capability trauma centre reachable' needs a reachability limit; none given. Null = no limit."
+  unstable_vitals:
+    value: {gcs_max: 13, sbp_min: 90, rr_min: 10, rr_max: 29}
+    provenance: PLACEHOLDER
+    basis: "CDC/ACS-COT Field Triage Guidelines physiologic criteria (GCS <= 13, SBP < 90, RR < 10 or > 29). US-derived and not validated for India (spec §4)."
+
+sim:
+  call_type_to_complaint:
+    value: {pregnancy: obstetric, trauma: trauma, cardiac: chest_pain, stroke: stroke_symptoms,
+            respiratory: other, other: other}
+    provenance: PLACEHOLDER
+    basis: "Maps GoldenHour's synthetic call types to advisor complaints. 'respiratory' has no advisor complaint, so it maps to 'other' and triage then depends on vitals. TODO: clinical review."
+  seed:
+    value: 7
+    provenance: PLACEHOLDER
+    basis: "Global random seed for the demo registry and SimPy replay (same as GoldenHour's SEED) so every run is reproducible from config (spec §9)."
+  demo_hospital_count:
+    value: 30
+    provenance: SIMULATED
+    basis: "TODO: source. Size of the FICTIONAL demo registry, used only until the verified registry is filled. Spec §7 suggests 'a few dozen' emergency-receiving hospitals per zone (a judgement call, not a sourced figure)."
+  demo_tier_shares:
+    value: {tertiary: 0.2, secondary: 0.4, primary: 0.4}
+    provenance: SIMULATED
+    basis: "TODO: source. Share of fictional demo hospitals in each capability tier. No public capability dataset exists for Bengaluru (spec §7); swept in sensitivity analysis."
+  demo_tier_capabilities:
+    value:
+      tertiary: [ed_24x7, ct_24x7, pci_24x7, thrombolysis, thrombectomy, trauma_ot, neurosurgery, orthopaedics, blood_bank, obstetric_emergency, nicu, picu]
+      secondary: [ed_24x7, ct_24x7, thrombolysis, trauma_ot, orthopaedics, blood_bank, obstetric_emergency, nicu]
+      primary: [ed_24x7, obstetric_emergency]
+    provenance: SIMULATED
+    basis: "TODO: source. Illustrative capability bundle per tier for the FICTIONAL demo registry. Not a claim about any real hospital."
+
+  # ---- SimPy replay (spec §9). Everything below describes the SIMULATED world the replay runs in,
+  # or a method choice for the replay itself. None of it is a field measurement.
+  replay_window_days:
+    value: 28
+    provenance: PLACEHOLDER
+    basis: "Method choice: replay the last 28 days of synthetic calls, the same window GoldenHour replays (data/raw/goldenhour_data/README.md, 04_results)."
+  sweep_window_days:
+    value: 6
+    provenance: PLACEHOLDER
+    basis: "Method choice for runtime: each sensitivity scenario replays one contiguous block of this many days (seeded start, ~3,000 incidents) so per-hospital ambulance load stays realistic. Not a world assumption."
+  warmup_hours:
+    value: 24
+    provenance: PLACEHOLDER
+    basis: "Method choice: background ED arrivals start this many hours before the window so ED queues are not empty when the first incident arrives."
+  call_to_scene_min:
+    value: 13.5
+    provenance: SIMULATED
+    basis: "GoldenHour simulation assumptions (data/raw/goldenhour_data/README.md): 3 min call handling + 10.5 min median response (Today plan, Bengaluru). Only moves the clock (hour of travel, ED state); time to treatment starts after the scene."
+  on_scene_min:
+    value: 15
+    provenance: SIMULATED
+    basis: "GoldenHour simulation assumption: 15 min mean on scene (data/raw/goldenhour_data/README.md). Used as minutes since first contact when the crew asks the advisor."
+  handover_min:
+    value: 10
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Minutes the crew spends handing over once an ED bay is free. GoldenHour assumed a 20-min mean total handover; here the waiting part is simulated separately (offload queue) and this is the rest."
+  travel_noise_sigma:
+    value: 0.25
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Actual drive = expected time-dependent drive x lognormal noise with mean 1 and this sigma. The advisor never sees the draw; it ranks on p80 = expected x travel.pessimistic_multiplier_p80. Swept."
+  chest_pain_ecg_shares:
+    value: {stemi: 0.15, negative: 0.25, none: 0.60}
+    provenance: SIMULATED
+    basis: "TODO: source. Chest-pain calls by what the crew's ECG shows: STEMI, no STEMI, or no ECG done. 'none' is large because most units on the road are Basic (GoldenHour: 11 of 53 Advanced in Bengaluru)."
+  stemi_share_without_ecg:
+    value: 0.25
+    provenance: SIMULATED
+    basis: "TODO: source. True STEMI share among chest-pain patients with no ECG. The rest are not STEMI (ground truth low acuity), so over-triage of no-ECG chest pain shows up honestly. Swept."
+  trauma_severe_share:
+    value: 0.20
+    provenance: SIMULATED
+    basis: "TODO: source. Share of trauma calls that are severe (unstable vitals, need a trauma centre). Swept."
+  stroke_lvo_share:
+    value: 0.30
+    provenance: SIMULATED
+    basis: "TODO: source. Share of stroke calls with a large-vessel occlusion. Only changes the recorded stroke score; LVO bypass is disabled while rules.stroke_lvo_score_cutoff is null."
+  stroke_scores:
+    value: {lvo: 6, non_lvo: 2}
+    provenance: SIMULATED
+    basis: "TODO: source. Illustrative prehospital stroke-scale values (RACE-style 0-9) recorded for LVO and non-LVO strokes."
+  other_unstable_share:
+    value: 0.10
+    provenance: SIMULATED
+    basis: "TODO: source. Share of 'other' (incl. respiratory) calls with unstable vitals: ground truth arrest_airway, nearest ED to stabilise."
+  other_paediatric_share:
+    value: 0.05
+    provenance: SIMULATED
+    basis: "TODO: source. Share of 'other' (incl. respiratory) calls that are paediatric emergencies needing a PICU."
+  vitals_profiles:
+    value:
+      stable: {gcs: 15, sbp: 120, rr: 16}
+      unstable_trauma: {gcs: 12, sbp: 80, rr: 24}
+      unstable_medical: {gcs: 14, sbp: 100, rr: 32}
+    provenance: SIMULATED
+    basis: "Illustrative vitals placed clearly either side of rules.unstable_vitals so triage sees what the sampled patient is. Not clinical data."
+  ed_bays_by_class:
+    value: {tertiary: 20, secondary: 12, primary: 6}
+    provenance: SIMULATED
+    basis: "TODO: source. ED trolleys/bays per hospital size class (class from capabilities: PCI -> tertiary, CT -> secondary, else primary)."
+  ed_stay_mean_min:
+    value: 120
+    provenance: SIMULATED
+    basis: "TODO: source. Mean minutes a patient occupies an ED bay (exponential), for 108 and background patients alike."
+  background_arrivals_per_hour_by_class:
+    value: {tertiary: 5.0, secondary: 3.0, primary: 1.5}
+    provenance: SIMULATED
+    basis: "TODO: source. Mean non-108 ED arrivals per hour (walk-ins, private vehicles, referrals); 108 is only part of ED load. Set so background alone fills about half of each ED's bays on average (rate x ed_stay_mean_min / bays = 0.5), leaving 108 traffic and the daytime peak to create queues. Swept via background_load_scale."
+  background_hourly_profile:
+    value: [0.50, 0.40, 0.35, 0.30, 0.30, 0.40, 0.60, 0.90, 1.20, 1.40, 1.40, 1.35,
+            1.30, 1.25, 1.20, 1.20, 1.25, 1.35, 1.40, 1.40, 1.30, 1.10, 0.85, 0.65]
+    provenance: SIMULATED
+    basis: "TODO: source. Relative non-108 ED arrival rate by hour 0-23 (normalised to mean 1 in code). Hand-shaped daytime/evening peak."
+  background_load_scale:
+    value: 1.0
+    provenance: PLACEHOLDER
+    basis: "Sweep knob: multiplies every background arrival rate. 1.0 = rates above."
+  ed_status_queue_per_bay:
+    value: {red: 0.25, diversion: 0.75}
+    provenance: SIMULATED
+    basis: "TODO: source. True ED status from the queue: green = a bay is free; amber = all bays busy, queue < red x bays; red = queue < diversion x bays; diversion beyond."
+  status_report_interval_min:
+    value: 30
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Hospitals report ED status (green/amber/red, diversion) every this many minutes (spec §5 live tier)."
+  status_stale_share:
+    value: 0.20
+    provenance: SIMULATED
+    basis: "TODO: source. Share of hospitals whose reports go stale (spec §5: self-reported data goes stale). They report only every status_stale_interval_min. Swept."
+  status_stale_interval_min:
+    value: 240
+    provenance: SIMULATED
+    basis: "TODO: source. Reporting interval of stale hospitals; longer than scoring.live_status_max_age_min, so their status is often ignored."
+  status_misreport_share:
+    value: 0.10
+    provenance: SIMULATED
+    basis: "TODO: source. Share of hospitals that always report green and never diversion (spec §5: Covid-era Bengaluru bed dashboards showed beds while patients were turned away). Swept."
+  reject_base_rate:
+    value: 0.08
+    provenance: SIMULATED
+    basis: "TODO: source. Per-trip refusal probability at a green ED. CAG audit 2014-19: 74% of EMTs and 86% of pilots had to move patients on after a refusal or missing facilities, but that is a share of staff, not a per-trip rate. Swept 0.02-0.30."
+  reject_status_multiplier:
+    value: {green: 1.0, amber: 2.0, red: 4.0, diversion: 8.0}
+    provenance: SIMULATED
+    basis: "TODO: source. Refusal probability = reject_base_rate x this multiplier for the TRUE ED status (capped at reject_max_prob)."
+  reject_max_prob:
+    value: 0.9
+    provenance: SIMULATED
+    basis: "TODO: source. Cap on the per-attempt refusal probability."
+  max_refusals_per_patient:
+    value: 2
+    provenance: PLACEHOLDER
+    basis: "TODO: source. After this many refusals the next capable hospital must take the patient (stabilise-before-transfer duty, Karnataka circular Sep 2025)."
+  refusal_gate_min:
+    value: 10
+    provenance: SIMULATED
+    basis: "TODO: source. Minutes spent at the gate of an unannounced hospital before it refuses or says it lacks the facility."
+  prealert_no_answer_share:
+    value: 0.10
+    provenance: SIMULATED
+    basis: "TODO: source. Share of pre-alerts nobody answers; each costs prealert.response_timeout_s while the ambulance waits at the scene."
+  registry_error_share:
+    value: 0.0
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Share of the advisor's capability records (except 24x7 ED) that are wrong, in either direction. Base 0.0 means the headline assumes a PERFECT registry; swept to 0.05/0.15/0.30 (spec §5: registry data goes stale or wrong)."
+  accepted_prealert_refused_on_arrival_share:
+    value: 0.0
+    provenance: PLACEHOLDER
+    basis: "Simplification: an accepted pre-alert is honoured on arrival (0.0). Swept to 0.1 and 0.25 to test it. TODO: source."
+
+prealert:
+  response_timeout_s:
+    value: 120
+    provenance: PLACEHOLDER
+    basis: "TODO: source. Accept/reject timer before automatic fallback to the next-best hospital (spec §4 step 5-6)."
+
+# Care categories (spec §4 decision rules). Capability names must match registry/capabilities.csv.
+# required: hard filter. preferred: tie-breaker tier, ranked before travel time where the rule says so.
+# Capability lists are not params (they are a clinical mapping, not a number) but still need sign-off.
+care_categories:
+  stemi:
+    rule: stemi
+    required: [ed_24x7]
+    primary_pci: [pci_24x7]
+    pharmacoinvasive: [thrombolysis]
+  stroke:
+    rule: stroke
+    required: [ed_24x7, ct_24x7, thrombolysis]
+    lvo_target: [thrombectomy]
+  severe_trauma:
+    rule: trauma
+    required: [ed_24x7, trauma_ot, blood_bank]
+    preferred: [neurosurgery, orthopaedics]
+  obstetric:
+    rule: score
+    required: [ed_24x7, obstetric_emergency]
+    preferred: [nicu, blood_bank]
+  paediatric:
+    rule: score
+    required: [ed_24x7, picu]
+  arrest_airway:
+    rule: nearest
+    required: [ed_24x7]
+  low_acuity:
+    rule: score
+    required: [ed_24x7]

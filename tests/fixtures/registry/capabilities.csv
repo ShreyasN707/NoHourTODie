@@ -1,0 +1,6 @@
+hospital_id,capability,available,hours,provenance,source,as_of
+fx-a,ed_24x7,true,24x7,SIMULATED,test fixture,
+fx-a,pci_24x7,true,24x7,SIMULATED,test fixture,
+fx-a,ct_24x7,false,unknown,SIMULATED,test fixture,
+fx-b,ed_24x7,true,24x7,SIMULATED,test fixture,
+fx-b,trauma_ot,true,daytime,SIMULATED,test fixture,

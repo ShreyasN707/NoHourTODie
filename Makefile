@@ -1,4 +1,4 @@
-.PHONY: all setup data assistant geo travel demand forecast export web test run clean
+.PHONY: all setup data assistant geo travel demand forecast export web test run clean advisor-setup advisor-test advisor-api advisor-sim advisor-report advisor-worklist
 
 VENV = .venv/bin/python
 NPM = npm
@@ -46,3 +46,25 @@ test:
 
 clean:
 	rm -rf data/processed/* web/public/data/*
+
+# ---- Module B: Destination Advisor ----
+# Adds module B packages to the shared .venv created by `make setup`.
+advisor-setup:
+	uv pip install -p .venv -e ".[api,sim,dev]"
+
+advisor-test:
+	$(VENV) -m pytest -q
+	.venv/bin/ruff check src tests
+
+advisor-api:
+	PYTHONPATH=src .venv/bin/uvicorn advisor.api.app:app --reload --port 8000
+
+advisor-sim:
+	PYTHONPATH=src $(VENV) -m advisor.sim.run
+	PYTHONPATH=src $(VENV) -m advisor.sim.report
+
+advisor-report:
+	PYTHONPATH=src $(VENV) -m advisor.sim.report
+
+advisor-worklist:
+	PYTHONPATH=src $(VENV) -m advisor.registry.osm_worklist

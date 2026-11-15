@@ -132,3 +132,123 @@ npm run dev
 ```
 
 Visit `http://localhost:5173` in your browser to explore the dashboard.
+
+
+---
+
+## 7. Module B: Destination Advisor
+
+After the crew assesses the patient, the advisor recommends the hospital that minimises **expected time to definitive treatment**, not time to the nearest door, and pre-alerts it. It adds a hospital-selection step to Karnataka 108. It does not replace C-DAC dispatch.
+
+```
+score(h) = travel(scene -> h, at that hour) + expected_ED_wait(h)
+         + P(cannot treat | h) * transfer_delay + lambda * coverage_lost(h)      # lambda = 0 for critical patients
+```
+
+### Run it
+
+```bash
+make setup && make advisor-setup   # shared .venv, plus module B packages
+make advisor-test                  # pytest + ruff
+make advisor-api                   # FastAPI on :8000 (loads the OSM road graph if data/processed/graph_*.parquet exist)
+cd web && npm run dev              # crew dashboard: http://localhost:5173/crew (or /#crew on a static host)
+make advisor-sim                   # SimPy replay + sensitivity sweeps (~1 min), then results/advisor_sim/EVALUATION.md
+```
+
+The road graph comes from GoldenHour (`make geo`, or `road_graph_*.parquet` in the team data package copied to `data/processed/graph_*.parquet`). Without it, the API falls back to straight-line travel estimates.
+
+### Simulation result (synthetic data, not a field result)
+
+In a replay of 14,875 synthetic Bengaluru incidents with fictional hospitals, the advisor cut the mean time to definitive treatment for critical patients from **37.2 to 23.7 min** (90th percentile 89.4 to 52.9). Secondary transfers fell from 25.7% to 0.0%. It stayed better in 34 of 34 sensitivity scenarios. The headline assumes a perfect capability registry, and most low-acuity gains come from the simulated crowding model. See [results/advisor_sim/EVALUATION.md](results/advisor_sim/EVALUATION.md) for the full tables and caveats.
+
+| Path | What |
+|---|---|
+| `config/advisor.yaml` | Every threshold and placeholder, each with provenance and basis. The loader refuses params without them |
+| `src/advisor/rules/` | Triage to a care category, then per-category decision rules (STEMI, stroke, trauma, obstetric/paediatric, arrest, low acuity) |
+| `src/advisor/scoring/` | Score function, P(cannot treat) with Beta prior and data-age decay (O(1) running counts), ED-wait fallback chain |
+| `src/advisor/graph/` | Time-dependent travel times: OSM road graph, haversine fallback, fixed table |
+| `src/advisor/registry/` | Verified registry loader (`registry/*.csv`), data.gov.in directory loader, OSM phone-audit worklist, FICTIONAL demo registry |
+| `src/advisor/passive/` | 108 gate-dwell log loader and rolling offload index; accept/reject outcome store |
+| `src/advisor/prealert/` | Pre-alert, accept/reject timer, automatic fallback, refusal logging (Karnataka accident-victim circular) |
+| `src/advisor/api/` | FastAPI endpoints (`docs/advisor_contract.md`) |
+| `src/advisor/sim/` | SimPy replay (nearest vs nearest + pre-alert vs advisor), sensitivity sweeps, evaluation report |
+| `web/src/advisor/` | Crew dashboard (`/crew`, `/crew/sim`): map, assessment, ranked hospitals with score breakdown and provenance badges, pre-alert, simulation results |
+
+### Data provenance status
+
+- **Hospital capabilities:** `registry/hospitals.csv` is empty until the verified registry is filled from websites, empanelment lists and phone calls. Until then, the API and simulation use a **FICTIONAL demo registry** ("Demo Hospital NN (fictional)", SIMULATED), and the UI shows a banner. Real hospitals are never given invented capabilities.
+- **108 call/GPS logs:** none yet. `GoldenHour_Data.zip` holds GoldenHour's **synthetic** call year, not real 108 logs, and it has no hospital, handover or GPS dwell fields. Offload/dwell and accept/reject data therefore stay **SIMULATED**.
+- **From the GoldenHour data package:**
+  - The OSM road graph (real network, estimated speeds) is used for routing.
+  - The synthetic calls feed the replay as **SIMULATED** incidents.
+  - 404 OSM hospital locations form an *unverified* phone-audit worklist (`registry/osm_hospital_candidates_blr.csv`). It is incomplete, because GoldenHour kept one site per H3 cell.
+- **Travel speeds:** every travel speed is a PLACEHOLDER (GoldenHour's hand-shaped congestion curve). They become REAL_DERIVED once fitted from a week of sampled routing-API travel times. They look optimistic at peak hour compared with press reports.
+- **Clinical sign-off:** none of the clinical thresholds or lambda values has health-department or clinical-society sign-off yet.
+
+### Simulated and placeholder parameters (generated from `config/advisor.yaml`)
+
+| Param | Value | Provenance |
+|---|---|---|
+| `scoring.transfer_delay_min` | 50 | PLACEHOLDER |
+| `scoring.ed_wait_by_status_min` | {'green': 5, 'amber': 15, 'red': 30} | PLACEHOLDER |
+| `scoring.ed_status_when_unknown` | amber | PLACEHOLDER **TODO: source** |
+| `scoring.live_status_max_age_min` | 60 | PLACEHOLDER **TODO: source** |
+| `scoring.pessimistic_travel_quantile` | 0.8 | PLACEHOLDER |
+| `scoring.lambda_by_category` | see config | PLACEHOLDER |
+| `scoring.low_acuity_travel_cap_min` | null (disabled) | PLACEHOLDER **TODO: source** |
+| `reliability.prior_rejects` | 1 | PLACEHOLDER |
+| `reliability.prior_total` | 10 | PLACEHOLDER **TODO: source** |
+| `reliability.decay_half_life_days` | 30 | PLACEHOLDER **TODO: source** |
+| `travel.pessimistic_multiplier_p80` | 1.25 | PLACEHOLDER **TODO: source** |
+| `travel.detour_factor` | 1.4 | PLACEHOLDER **TODO: source** |
+| `travel.fallback_free_flow_kmh` | 38.0 | PLACEHOLDER **TODO: source** |
+| `travel.ambulance_speed_multiplier` | 1.15 | PLACEHOLDER **TODO: source** |
+| `travel.hourly_congestion` | 24 values | PLACEHOLDER |
+| `passive.hour_band_hours` | 4 | PLACEHOLDER |
+| `passive.min_dwell_samples` | 5 | PLACEHOLDER **TODO: source** |
+| `passive.dwell_window_days` | 28 | PLACEHOLDER **TODO: source** |
+| `rules.chest_pain_without_ecg_as_stemi` | True | PLACEHOLDER |
+| `rules.stemi_fmc_to_pci_window_min` | 120 | PLACEHOLDER |
+| `rules.stroke_lvo_score_cutoff` | null (disabled) | PLACEHOLDER **TODO: source** |
+| `rules.stroke_thrombectomy_extra_travel_limit_min` | null (disabled) | PLACEHOLDER **TODO: source** |
+| `rules.trauma_max_travel_min` | null (disabled) | PLACEHOLDER **TODO: source** |
+| `rules.unstable_vitals` | see config | PLACEHOLDER |
+| `sim.call_type_to_complaint` | see config | PLACEHOLDER |
+| `sim.seed` | 7 | PLACEHOLDER |
+| `sim.demo_hospital_count` | 30 | SIMULATED **TODO: source** |
+| `sim.demo_tier_shares` | see config | SIMULATED **TODO: source** |
+| `sim.demo_tier_capabilities` | see config | SIMULATED **TODO: source** |
+| `sim.replay_window_days` | 28 | PLACEHOLDER |
+| `sim.sweep_window_days` | 6 | PLACEHOLDER |
+| `sim.warmup_hours` | 24 | PLACEHOLDER |
+| `sim.call_to_scene_min` | 13.5 | SIMULATED |
+| `sim.on_scene_min` | 15 | SIMULATED |
+| `sim.handover_min` | 10 | PLACEHOLDER **TODO: source** |
+| `sim.travel_noise_sigma` | 0.25 | PLACEHOLDER **TODO: source** |
+| `sim.chest_pain_ecg_shares` | see config | SIMULATED **TODO: source** |
+| `sim.stemi_share_without_ecg` | 0.25 | SIMULATED **TODO: source** |
+| `sim.trauma_severe_share` | 0.2 | SIMULATED **TODO: source** |
+| `sim.stroke_lvo_share` | 0.3 | SIMULATED **TODO: source** |
+| `sim.stroke_scores` | {'lvo': 6, 'non_lvo': 2} | SIMULATED **TODO: source** |
+| `sim.other_unstable_share` | 0.1 | SIMULATED **TODO: source** |
+| `sim.other_paediatric_share` | 0.05 | SIMULATED **TODO: source** |
+| `sim.vitals_profiles` | see config | SIMULATED |
+| `sim.ed_bays_by_class` | see config | SIMULATED **TODO: source** |
+| `sim.ed_stay_mean_min` | 120 | SIMULATED **TODO: source** |
+| `sim.background_arrivals_per_hour_by_class` | see config | SIMULATED **TODO: source** |
+| `sim.background_hourly_profile` | 24 values | SIMULATED **TODO: source** |
+| `sim.background_load_scale` | 1.0 | PLACEHOLDER |
+| `sim.ed_status_queue_per_bay` | {'red': 0.25, 'diversion': 0.75} | SIMULATED **TODO: source** |
+| `sim.status_report_interval_min` | 30 | PLACEHOLDER **TODO: source** |
+| `sim.status_stale_share` | 0.2 | SIMULATED **TODO: source** |
+| `sim.status_stale_interval_min` | 240 | SIMULATED **TODO: source** |
+| `sim.status_misreport_share` | 0.1 | SIMULATED **TODO: source** |
+| `sim.reject_base_rate` | 0.08 | SIMULATED **TODO: source** |
+| `sim.reject_status_multiplier` | see config | SIMULATED **TODO: source** |
+| `sim.reject_max_prob` | 0.9 | SIMULATED **TODO: source** |
+| `sim.max_refusals_per_patient` | 2 | PLACEHOLDER **TODO: source** |
+| `sim.refusal_gate_min` | 10 | SIMULATED **TODO: source** |
+| `sim.prealert_no_answer_share` | 0.1 | SIMULATED **TODO: source** |
+| `sim.registry_error_share` | 0.0 | PLACEHOLDER **TODO: source** |
+| `sim.accepted_prealert_refused_on_arrival_share` | 0.0 | PLACEHOLDER **TODO: source** |
+| `prealert.response_timeout_s` | 120 | PLACEHOLDER **TODO: source** |

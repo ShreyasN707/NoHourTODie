@@ -1,0 +1,1172 @@
+{
+  "banner": "SIMULATED DATA: fictional demo hospitals, simulated ED status and placeholder travel speeds. Not live hospital data.",
+  "base": {
+    "name": "base",
+    "overrides": {},
+    "policies": {
+      "advisor": {
+        "advisor_category_differs_from_truth": 558,
+        "ambulance_hours": 11158.303,
+        "critical_capable_first_attempt_share": 1.0,
+        "fallbacks": 4141,
+        "n": 14875,
+        "no_definitive_care": 0,
+        "offload_wait": {
+          "mean": 10.575,
+          "n": 14875,
+          "p50": 0.0,
+          "p90": 39.957
+        },
+        "prealert_rejects": 2260,
+        "prealert_timeouts": 1881,
+        "secondary_transfer_rate": 0.0,
+        "secondary_transfers": 0,
+        "time_to_treatment": {
+          "by_category": {
+            "arrest_airway": {
+              "mean": 18.878,
+              "n": 516,
+              "p50": 9.267,
+              "p90": 55.795
+            },
+            "low_acuity": {
+              "mean": 23.116,
+              "n": 8006,
+              "p50": 12.442,
+              "p90": 58.114
+            },
+            "obstetric": {
+              "mean": 22.639,
+              "n": 4518,
+              "p50": 14.254,
+              "p90": 52.149
+            },
+            "paediatric": {
+              "mean": 26.449,
+              "n": 275,
+              "p50": 18.141,
+              "p90": 54.662
+            },
+            "severe_trauma": {
+              "mean": 28.291,
+              "n": 593,
+              "p50": 20.974,
+              "p90": 56.58
+            },
+            "stemi": {
+              "mean": 26.343,
+              "n": 373,
+              "p50": 18.921,
+              "p90": 50.889
+            },
+            "stroke": {
+              "mean": 23.868,
+              "n": 594,
+              "p50": 14.859,
+              "p90": 53.236
+            }
+          },
+          "critical": {
+            "mean": 23.664,
+            "n": 6353,
+            "p50": 15.299,
+            "p90": 52.874
+          },
+          "overall": {
+            "mean": 23.203,
+            "n": 14875,
+            "p50": 13.581,
+            "p90": 55.519
+          }
+        }
+      },
+      "nearest": {
+        "advisor_category_differs_from_truth": 0,
+        "ambulance_hours": 14580.302,
+        "critical_capable_first_attempt_share": 0.67842,
+        "fallbacks": 0,
+        "n": 14875,
+        "no_definitive_care": 0,
+        "offload_wait": {
+          "mean": 24.043,
+          "n": 14875,
+          "p50": 0.0,
+          "p90": 79.148
+        },
+        "prealert_rejects": 0,
+        "prealert_timeouts": 0,
+        "secondary_transfer_rate": 0.25661,
+        "secondary_transfers": 3817,
+        "time_to_treatment": {
+          "by_category": {
+            "arrest_airway": {
+              "mean": 38.847,
+              "n": 516,
+              "p50": 13.992,
+              "p90": 89.476
+            },
+            "low_acuity": {
+              "mean": 40.439,
+              "n": 8006,
+              "p50": 17.48,
+              "p90": 104.43
+            },
+            "obstetric": {
+              "mean": 38.188,
+              "n": 4518,
+              "p50": 14.065,
+              "p90": 101.131
+            },
+            "paediatric": {
+              "mean": 38.494,
+              "n": 275,
+              "p50": 33.146,
+              "p90": 65.715
+            },
+            "severe_trauma": {
+              "mean": 36.971,
+              "n": 593,
+              "p50": 27.073,
+              "p90": 82.424
+            },
+            "stemi": {
+              "mean": 31.665,
+              "n": 373,
+              "p50": 27.391,
+              "p90": 59.94
+            },
+            "stroke": {
+              "mean": 32.314,
+              "n": 594,
+              "p50": 26.131,
+              "p90": 72.458
+            }
+          },
+          "critical": {
+            "mean": 37.156,
+            "n": 6353,
+            "p50": 19.906,
+            "p90": 89.415
+          },
+          "overall": {
+            "mean": 38.982,
+            "n": 14875,
+            "p50": 18.495,
+            "p90": 97.352
+          }
+        }
+      },
+      "nearest_prealert": {
+        "advisor_category_differs_from_truth": 0,
+        "ambulance_hours": 13771.283,
+        "critical_capable_first_attempt_share": 0.86054,
+        "fallbacks": 6186,
+        "n": 14875,
+        "no_definitive_care": 0,
+        "offload_wait": {
+          "mean": 24.108,
+          "n": 14875,
+          "p50": 0.0,
+          "p90": 81.701
+        },
+        "prealert_rejects": 4059,
+        "prealert_timeouts": 2127,
+        "secondary_transfer_rate": 0.05956,
+        "secondary_transfers": 886,
+        "time_to_treatment": {
+          "by_category": {
+            "arrest_airway": {
+              "mean": 33.9,
+              "n": 516,
+              "p50": 11.263,
+              "p90": 83.033
+            },
+            "low_acuity": {
+              "mean": 36.677,
+              "n": 8006,
+              "p50": 12.971,
+              "p90": 100.125
+            },
+            "obstetric": {
+              "mean": 35.669,
+              "n": 4518,
+              "p50": 11.929,
+              "p90": 101.645
+            },
+            "paediatric": {
+              "mean": 39.312,
+              "n": 275,
+              "p50": 35.097,
+              "p90": 67.793
+            },
+            "severe_trauma": {
+              "mean": 33.344,
+              "n": 593,
+              "p50": 24.474,
+              "p90": 70.056
+            },
+            "stemi": {
+              "mean": 29.494,
+              "n": 373,
+              "p50": 24.707,
+              "p90": 59.965
+            },
+            "stroke": {
+              "mean": 29.308,
+              "n": 594,
+              "p50": 22.266,
+              "p90": 67.009
+            }
+          },
+          "critical": {
+            "mean": 34.653,
+            "n": 6353,
+            "p50": 14.986,
+            "p90": 85.388
+          },
+          "overall": {
+            "mean": 35.716,
+            "n": 14875,
+            "p50": 13.546,
+            "p90": 93.949
+          }
+        }
+      }
+    }
+  },
+  "critical_categories": [
+    "obstetric",
+    "paediatric",
+    "severe_trauma",
+    "stemi",
+    "stroke"
+  ],
+  "definitions": {
+    "ambulance_hours": "Sum over incidents of hours from scene-ready until the ambulance is back at its base (nearest GoldenHour standby site to the scene).",
+    "critical": "Care categories with lambda 0 in the base config, excluding arrest_airway: obstetric, paediatric, severe_trauma, stemi, stroke.",
+    "critical_capable_first_attempt_share": "Share of critical patients treated at the first hospital the ambulance reached (it had the capability and took them).",
+    "delta_mean_ttt_critical": "advisor minus nearest mean time to treatment for critical patients; negative = advisor better.",
+    "fallbacks": "Times the pre-alert moved to the next hospital after a reject or timeout (advisor only).",
+    "nearest_prealert": "Reference policy, not a proposal: pre-alert 24x7 EDs nearest-first with the same simulated answers but no advisor triage or ranking. Separates the gain from pre-alerting itself.",
+    "prealert_rejects": "Pre-alerts the simulated hospital explicitly rejected (advisor only).",
+    "secondary_transfers": "Patients moved on at least once after arriving at a hospital (refused, or it lacked the capability for the true category).",
+    "time_to_treatment": "Minutes from the crew being ready to leave the scene (before any pre-alert wait) until the patient gets an ED bay at a hospital that can treat their TRUE (sampled) care category. Patients who never reach such a hospital are excluded from the statistic and counted in no_definitive_care.",
+    "true_category": "Sampled from the call's complaint and config sim.* shares, never from the advisor's triage. Over-triaged patients (e.g. no-ECG chest pain that is not STEMI) count as low_acuity."
+  },
+  "generated_at": "2026-11-15T10:49:46",
+  "inputs_provenance": {
+    "advisor_scoring_params": "PLACEHOLDER",
+    "ed_crowding": "SIMULATED",
+    "ed_status_reports": "SIMULATED",
+    "gate_dwell": "SIMULATED",
+    "hospitals": "SIMULATED",
+    "incidents": "SIMULATED",
+    "outcome_events": "SIMULATED",
+    "patient_mix": "SIMULATED",
+    "rejections": "SIMULATED",
+    "road_network": "REAL",
+    "travel_noise": "PLACEHOLDER",
+    "travel_speeds": "PLACEHOLDER"
+  },
+  "is_simulation": true,
+  "mode": "full",
+  "seed": 7,
+  "sensitivity": [
+    {
+      "advisor_ambulance_hours": 2500.437,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.321,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.365,
+      "label": "base config on the sweep window",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "(base)",
+      "value": null
+    },
+    {
+      "advisor_ambulance_hours": 2622.853,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 24.023,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -13.663,
+      "label": "advisor's ED-wait lookup about halved (2/8/15 min)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "scoring.ed_wait_by_status_min",
+      "value": {
+        "amber": 8,
+        "green": 2,
+        "red": 15
+      }
+    },
+    {
+      "advisor_ambulance_hours": 2503.25,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.19,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.496,
+      "label": "advisor's ED-wait lookup doubled (10/30/60 min)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "scoring.ed_wait_by_status_min",
+      "value": {
+        "amber": 30,
+        "green": 10,
+        "red": 60
+      }
+    },
+    {
+      "advisor_ambulance_hours": 2482.5,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 21.929,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.757,
+      "label": "advisor's transfer delay 20 min",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "scoring.transfer_delay_min",
+      "value": 20
+    },
+    {
+      "advisor_ambulance_hours": 2577.973,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 23.46,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.226,
+      "label": "advisor's transfer delay 90 min",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "scoring.transfer_delay_min",
+      "value": 90
+    },
+    {
+      "advisor_ambulance_hours": 2588.4,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 24.061,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -52.075,
+      "label": "per-trip refusal rate at a green ED 0.02 (base 0.08)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 5731.975,
+      "nearest_mean_ttt_critical": 76.136,
+      "nearest_prealert_mean_ttt_critical": 75.212,
+      "nearest_secondary_transfer_rate": 0.11135,
+      "param": "sim.reject_base_rate",
+      "value": 0.02
+    },
+    {
+      "advisor_ambulance_hours": 2410.739,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 20.563,
+      "advisor_secondary_transfer_rate": 0.0003,
+      "delta_mean_ttt_critical": -14.079,
+      "label": "per-trip refusal rate at a green ED 0.15 (base 0.08)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3037.489,
+      "nearest_mean_ttt_critical": 34.642,
+      "nearest_prealert_mean_ttt_critical": 27.703,
+      "nearest_secondary_transfer_rate": 0.34547,
+      "param": "sim.reject_base_rate",
+      "value": 0.15
+    },
+    {
+      "advisor_ambulance_hours": 2383.602,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 19.362,
+      "advisor_secondary_transfer_rate": 0.0006,
+      "delta_mean_ttt_critical": -17.947,
+      "label": "per-trip refusal rate at a green ED 0.3 (base 0.08)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3296.288,
+      "nearest_mean_ttt_critical": 37.309,
+      "nearest_prealert_mean_ttt_critical": 24.717,
+      "nearest_secondary_transfer_rate": 0.49353,
+      "param": "sim.reject_base_rate",
+      "value": 0.3
+    },
+    {
+      "advisor_ambulance_hours": 2500.437,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.302,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.856,
+      "label": "10% of no-ECG chest pain is truly STEMI",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3230.903,
+      "nearest_mean_ttt_critical": 38.158,
+      "nearest_prealert_mean_ttt_critical": 34.314,
+      "nearest_secondary_transfer_rate": 0.24616,
+      "param": "sim.stemi_share_without_ecg",
+      "value": 0.1
+    },
+    {
+      "advisor_ambulance_hours": 2500.437,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.549,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.849,
+      "label": "50% of no-ECG chest pain is truly STEMI",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3213.356,
+      "nearest_mean_ttt_critical": 37.398,
+      "nearest_prealert_mean_ttt_critical": 33.858,
+      "nearest_secondary_transfer_rate": 0.25248,
+      "param": "sim.stemi_share_without_ecg",
+      "value": 0.5
+    },
+    {
+      "advisor_ambulance_hours": 2474.922,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 21.864,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.752,
+      "label": "most chest pain gets an ECG (20% without)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3199.789,
+      "nearest_mean_ttt_critical": 37.616,
+      "nearest_prealert_mean_ttt_critical": 33.903,
+      "nearest_secondary_transfer_rate": 0.24737,
+      "param": "sim.chest_pain_ecg_shares",
+      "value": {
+        "negative": 0.5,
+        "none": 0.2,
+        "stemi": 0.3
+      }
+    },
+    {
+      "advisor_ambulance_hours": 2526.005,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.65,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.476,
+      "label": "10% of trauma is severe",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3250.99,
+      "nearest_mean_ttt_critical": 38.126,
+      "nearest_prealert_mean_ttt_critical": 34.877,
+      "nearest_secondary_transfer_rate": 0.24406,
+      "param": "sim.trauma_severe_share",
+      "value": 0.1
+    },
+    {
+      "advisor_ambulance_hours": 2551.0,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.549,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.54,
+      "label": "40% of trauma is severe",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3188.908,
+      "nearest_mean_ttt_critical": 37.089,
+      "nearest_prealert_mean_ttt_critical": 33.872,
+      "nearest_secondary_transfer_rate": 0.2576,
+      "param": "sim.trauma_severe_share",
+      "value": 0.4
+    },
+    {
+      "advisor_ambulance_hours": 2671.855,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 24.31,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -13.376,
+      "label": "lambda for low acuity 0 (no load balancing)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "scoring.lambda_by_category.low_acuity",
+      "value": 0.0
+    },
+    {
+      "advisor_ambulance_hours": 2458.113,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 21.877,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.809,
+      "label": "lambda for low acuity 1.0",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "scoring.lambda_by_category.low_acuity",
+      "value": 1.0
+    },
+    {
+      "advisor_ambulance_hours": 2194.199,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 18.931,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.731,
+      "label": "traffic multipliers x0.75 (lighter traffic)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 2943.353,
+      "nearest_mean_ttt_critical": 34.662,
+      "nearest_prealert_mean_ttt_critical": 30.968,
+      "nearest_secondary_transfer_rate": 0.24917,
+      "param": "travel.hourly_congestion",
+      "value": 0.75
+    },
+    {
+      "advisor_ambulance_hours": 2809.374,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 25.754,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.897,
+      "label": "traffic multipliers x1.25 (heavier traffic)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3516.057,
+      "nearest_mean_ttt_critical": 40.651,
+      "nearest_prealert_mean_ttt_critical": 37.28,
+      "nearest_secondary_transfer_rate": 0.24616,
+      "param": "travel.hourly_congestion",
+      "value": 1.25
+    },
+    {
+      "advisor_ambulance_hours": 2513.093,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 21.977,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.509,
+      "label": "travel-time noise sigma 0.10",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3224.612,
+      "nearest_mean_ttt_critical": 37.486,
+      "nearest_prealert_mean_ttt_critical": 34.074,
+      "nearest_secondary_transfer_rate": 0.24917,
+      "param": "sim.travel_noise_sigma",
+      "value": 0.1
+    },
+    {
+      "advisor_ambulance_hours": 2507.834,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.34,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.551,
+      "label": "travel-time noise sigma 0.50 (very unpredictable)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3253.589,
+      "nearest_mean_ttt_critical": 37.891,
+      "nearest_prealert_mean_ttt_critical": 34.562,
+      "nearest_secondary_transfer_rate": 0.24737,
+      "param": "sim.travel_noise_sigma",
+      "value": 0.5
+    },
+    {
+      "advisor_ambulance_hours": 2472.385,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 21.945,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.741,
+      "label": "no hospital's status report goes stale",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.status_stale_share",
+      "value": 0.0
+    },
+    {
+      "advisor_ambulance_hours": 2564.579,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.884,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.802,
+      "label": "half of hospitals' status reports go stale",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.status_stale_share",
+      "value": 0.5
+    },
+    {
+      "advisor_ambulance_hours": 2524.114,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 22.531,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -15.155,
+      "label": "no hospital misreports its status",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.status_misreport_share",
+      "value": 0.0
+    },
+    {
+      "advisor_ambulance_hours": 2642.734,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 23.431,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.255,
+      "label": "30% of hospitals always report green",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.status_misreport_share",
+      "value": 0.3
+    },
+    {
+      "advisor_ambulance_hours": 2726.143,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 25.129,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -12.557,
+      "label": "60% of hospitals always report green",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.status_misreport_share",
+      "value": 0.6
+    },
+    {
+      "advisor_ambulance_hours": 2729.613,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 25.775,
+      "advisor_secondary_transfer_rate": 0.0006,
+      "delta_mean_ttt_critical": -20.508,
+      "label": "fewer tertiary hospitals (10% / 40% / 50%)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3714.68,
+      "nearest_mean_ttt_critical": 46.283,
+      "nearest_prealert_mean_ttt_critical": 39.929,
+      "nearest_secondary_transfer_rate": 0.2895,
+      "param": "sim.demo_tier_shares",
+      "value": {
+        "primary": 0.5,
+        "secondary": 0.4,
+        "tertiary": 0.1
+      }
+    },
+    {
+      "advisor_ambulance_hours": 2262.561,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 18.121,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -14.685,
+      "label": "more tertiary hospitals (30% / 40% / 30%)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 2947.319,
+      "nearest_mean_ttt_critical": 32.806,
+      "nearest_prealert_mean_ttt_critical": 29.71,
+      "nearest_secondary_transfer_rate": 0.21878,
+      "param": "sim.demo_tier_shares",
+      "value": {
+        "primary": 0.3,
+        "secondary": 0.4,
+        "tertiary": 0.3
+      }
+    },
+    {
+      "advisor_ambulance_hours": 2635.039,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 24.53,
+      "advisor_secondary_transfer_rate": 0.09841,
+      "delta_mean_ttt_critical": -13.156,
+      "label": "10% of accepted pre-alerts refused on arrival anyway",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 36.627,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.accepted_prealert_refused_on_arrival_share",
+      "value": 0.1
+    },
+    {
+      "advisor_ambulance_hours": 2810.338,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 28.071,
+      "advisor_secondary_transfer_rate": 0.24707,
+      "delta_mean_ttt_critical": -9.615,
+      "label": "25% of accepted pre-alerts refused on arrival anyway",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 39.154,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.accepted_prealert_refused_on_arrival_share",
+      "value": 0.25
+    },
+    {
+      "advisor_ambulance_hours": 2022.703,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 15.143,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -8.091,
+      "label": "EDs 30% less busy (background arrivals x0.7)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 2422.472,
+      "nearest_mean_ttt_critical": 23.234,
+      "nearest_prealert_mean_ttt_critical": 21.945,
+      "nearest_secondary_transfer_rate": 0.19531,
+      "param": "sim.background_load_scale",
+      "value": 0.7
+    },
+    {
+      "advisor_ambulance_hours": 4153.276,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 49.488,
+      "advisor_secondary_transfer_rate": 0.0003,
+      "delta_mean_ttt_critical": -30.544,
+      "label": "EDs 30% busier (background arrivals x1.3)",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 5754.535,
+      "nearest_mean_ttt_critical": 80.032,
+      "nearest_prealert_mean_ttt_critical": 71.578,
+      "nearest_secondary_transfer_rate": 0.37015,
+      "param": "sim.background_load_scale",
+      "value": 1.3
+    },
+    {
+      "advisor_ambulance_hours": 2655.252,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 24.121,
+      "advisor_secondary_transfer_rate": 0.0,
+      "delta_mean_ttt_critical": -13.565,
+      "label": "30% of pre-alerts go unanswered",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.816,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.prealert_no_answer_share",
+      "value": 0.3
+    },
+    {
+      "advisor_ambulance_hours": 2518.992,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 23.354,
+      "advisor_secondary_transfer_rate": 0.00301,
+      "delta_mean_ttt_critical": -14.332,
+      "label": "5% of the advisor's capability records are wrong",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.registry_error_share",
+      "value": 0.05
+    },
+    {
+      "advisor_ambulance_hours": 2610.608,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 25.124,
+      "advisor_secondary_transfer_rate": 0.00873,
+      "delta_mean_ttt_critical": -12.562,
+      "label": "15% of the advisor's capability records are wrong",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.registry_error_share",
+      "value": 0.15
+    },
+    {
+      "advisor_ambulance_hours": 2680.393,
+      "advisor_better": true,
+      "advisor_mean_ttt_critical": 28.109,
+      "advisor_secondary_transfer_rate": 0.02076,
+      "delta_mean_ttt_critical": -9.577,
+      "label": "30% of the advisor's capability records are wrong",
+      "n_incidents": 3323,
+      "nearest_ambulance_hours": 3226.135,
+      "nearest_mean_ttt_critical": 37.686,
+      "nearest_prealert_mean_ttt_critical": 33.986,
+      "nearest_secondary_transfer_rate": 0.24887,
+      "param": "sim.registry_error_share",
+      "value": 0.3
+    }
+  ],
+  "sim_params": {
+    "sim.accepted_prealert_refused_on_arrival_share": {
+      "basis": "Simplification: an accepted pre-alert is honoured on arrival (0.0). Swept to 0.1 and 0.25 to test it. TODO: source.",
+      "provenance": "PLACEHOLDER",
+      "value": 0.0
+    },
+    "sim.background_arrivals_per_hour_by_class": {
+      "basis": "TODO: source. Mean non-108 ED arrivals per hour (walk-ins, private vehicles, referrals); 108 is only part of ED load. Set so background alone fills about half of each ED's bays on average (rate x ed_stay_mean_min / bays = 0.5), leaving 108 traffic and the daytime peak to create queues. Swept via background_load_scale.",
+      "provenance": "SIMULATED",
+      "value": {
+        "primary": 1.5,
+        "secondary": 3.0,
+        "tertiary": 5.0
+      }
+    },
+    "sim.background_hourly_profile": {
+      "basis": "TODO: source. Relative non-108 ED arrival rate by hour 0-23 (normalised to mean 1 in code). Hand-shaped daytime/evening peak.",
+      "provenance": "SIMULATED",
+      "value": [
+        0.5,
+        0.4,
+        0.35,
+        0.3,
+        0.3,
+        0.4,
+        0.6,
+        0.9,
+        1.2,
+        1.4,
+        1.4,
+        1.35,
+        1.3,
+        1.25,
+        1.2,
+        1.2,
+        1.25,
+        1.35,
+        1.4,
+        1.4,
+        1.3,
+        1.1,
+        0.85,
+        0.65
+      ]
+    },
+    "sim.background_load_scale": {
+      "basis": "Sweep knob: multiplies every background arrival rate. 1.0 = rates above.",
+      "provenance": "PLACEHOLDER",
+      "value": 1.0
+    },
+    "sim.call_to_scene_min": {
+      "basis": "GoldenHour simulation assumptions (data/raw/goldenhour_data/README.md): 3 min call handling + 10.5 min median response (Today plan, Bengaluru). Only moves the clock (hour of travel, ED state); time to treatment starts after the scene.",
+      "provenance": "SIMULATED",
+      "value": 13.5
+    },
+    "sim.call_type_to_complaint": {
+      "basis": "Maps GoldenHour's synthetic call types to advisor complaints. 'respiratory' has no advisor complaint, so it maps to 'other' and triage then depends on vitals. TODO: clinical review.",
+      "provenance": "PLACEHOLDER",
+      "value": {
+        "cardiac": "chest_pain",
+        "other": "other",
+        "pregnancy": "obstetric",
+        "respiratory": "other",
+        "stroke": "stroke_symptoms",
+        "trauma": "trauma"
+      }
+    },
+    "sim.chest_pain_ecg_shares": {
+      "basis": "TODO: source. Chest-pain calls by what the crew's ECG shows: STEMI, no STEMI, or no ECG done. 'none' is large because most units on the road are Basic (GoldenHour: 11 of 53 Advanced in Bengaluru).",
+      "provenance": "SIMULATED",
+      "value": {
+        "negative": 0.25,
+        "none": 0.6,
+        "stemi": 0.15
+      }
+    },
+    "sim.demo_hospital_count": {
+      "basis": "TODO: source. Size of the FICTIONAL demo registry, used only until the verified registry is filled. Spec \u00a77 suggests 'a few dozen' emergency-receiving hospitals per zone (a judgement call, not a sourced figure).",
+      "provenance": "SIMULATED",
+      "value": 30
+    },
+    "sim.demo_tier_capabilities": {
+      "basis": "TODO: source. Illustrative capability bundle per tier for the FICTIONAL demo registry. Not a claim about any real hospital.",
+      "provenance": "SIMULATED",
+      "value": {
+        "primary": [
+          "ed_24x7",
+          "obstetric_emergency"
+        ],
+        "secondary": [
+          "ed_24x7",
+          "ct_24x7",
+          "thrombolysis",
+          "trauma_ot",
+          "orthopaedics",
+          "blood_bank",
+          "obstetric_emergency",
+          "nicu"
+        ],
+        "tertiary": [
+          "ed_24x7",
+          "ct_24x7",
+          "pci_24x7",
+          "thrombolysis",
+          "thrombectomy",
+          "trauma_ot",
+          "neurosurgery",
+          "orthopaedics",
+          "blood_bank",
+          "obstetric_emergency",
+          "nicu",
+          "picu"
+        ]
+      }
+    },
+    "sim.demo_tier_shares": {
+      "basis": "TODO: source. Share of fictional demo hospitals in each capability tier. No public capability dataset exists for Bengaluru (spec \u00a77); swept in sensitivity analysis.",
+      "provenance": "SIMULATED",
+      "value": {
+        "primary": 0.4,
+        "secondary": 0.4,
+        "tertiary": 0.2
+      }
+    },
+    "sim.ed_bays_by_class": {
+      "basis": "TODO: source. ED trolleys/bays per hospital size class (class from capabilities: PCI -> tertiary, CT -> secondary, else primary).",
+      "provenance": "SIMULATED",
+      "value": {
+        "primary": 6,
+        "secondary": 12,
+        "tertiary": 20
+      }
+    },
+    "sim.ed_status_queue_per_bay": {
+      "basis": "TODO: source. True ED status from the queue: green = a bay is free; amber = all bays busy, queue < red x bays; red = queue < diversion x bays; diversion beyond.",
+      "provenance": "SIMULATED",
+      "value": {
+        "diversion": 0.75,
+        "red": 0.25
+      }
+    },
+    "sim.ed_stay_mean_min": {
+      "basis": "TODO: source. Mean minutes a patient occupies an ED bay (exponential), for 108 and background patients alike.",
+      "provenance": "SIMULATED",
+      "value": 120
+    },
+    "sim.handover_min": {
+      "basis": "TODO: source. Minutes the crew spends handing over once an ED bay is free. GoldenHour assumed a 20-min mean total handover; here the waiting part is simulated separately (offload queue) and this is the rest.",
+      "provenance": "PLACEHOLDER",
+      "value": 10
+    },
+    "sim.max_refusals_per_patient": {
+      "basis": "TODO: source. After this many refusals the next capable hospital must take the patient (stabilise-before-transfer duty, Karnataka circular Sep 2025).",
+      "provenance": "PLACEHOLDER",
+      "value": 2
+    },
+    "sim.on_scene_min": {
+      "basis": "GoldenHour simulation assumption: 15 min mean on scene (data/raw/goldenhour_data/README.md). Used as minutes since first contact when the crew asks the advisor.",
+      "provenance": "SIMULATED",
+      "value": 15
+    },
+    "sim.other_paediatric_share": {
+      "basis": "TODO: source. Share of 'other' (incl. respiratory) calls that are paediatric emergencies needing a PICU.",
+      "provenance": "SIMULATED",
+      "value": 0.05
+    },
+    "sim.other_unstable_share": {
+      "basis": "TODO: source. Share of 'other' (incl. respiratory) calls with unstable vitals: ground truth arrest_airway, nearest ED to stabilise.",
+      "provenance": "SIMULATED",
+      "value": 0.1
+    },
+    "sim.prealert_no_answer_share": {
+      "basis": "TODO: source. Share of pre-alerts nobody answers; each costs prealert.response_timeout_s while the ambulance waits at the scene.",
+      "provenance": "SIMULATED",
+      "value": 0.1
+    },
+    "sim.refusal_gate_min": {
+      "basis": "TODO: source. Minutes spent at the gate of an unannounced hospital before it refuses or says it lacks the facility.",
+      "provenance": "SIMULATED",
+      "value": 10
+    },
+    "sim.registry_error_share": {
+      "basis": "TODO: source. Share of the advisor's capability records (except 24x7 ED) that are wrong, in either direction. Base 0.0 means the headline assumes a PERFECT registry; swept to 0.05/0.15/0.30 (spec \u00a75: registry data goes stale or wrong).",
+      "provenance": "PLACEHOLDER",
+      "value": 0.0
+    },
+    "sim.reject_base_rate": {
+      "basis": "TODO: source. Per-trip refusal probability at a green ED. CAG audit 2014-19: 74% of EMTs and 86% of pilots had to move patients on after a refusal or missing facilities, but that is a share of staff, not a per-trip rate. Swept 0.02-0.30.",
+      "provenance": "SIMULATED",
+      "value": 0.08
+    },
+    "sim.reject_max_prob": {
+      "basis": "TODO: source. Cap on the per-attempt refusal probability.",
+      "provenance": "SIMULATED",
+      "value": 0.9
+    },
+    "sim.reject_status_multiplier": {
+      "basis": "TODO: source. Refusal probability = reject_base_rate x this multiplier for the TRUE ED status (capped at reject_max_prob).",
+      "provenance": "SIMULATED",
+      "value": {
+        "amber": 2.0,
+        "diversion": 8.0,
+        "green": 1.0,
+        "red": 4.0
+      }
+    },
+    "sim.replay_window_days": {
+      "basis": "Method choice: replay the last 28 days of synthetic calls, the same window GoldenHour replays (data/raw/goldenhour_data/README.md, 04_results).",
+      "provenance": "PLACEHOLDER",
+      "value": 28
+    },
+    "sim.seed": {
+      "basis": "Global random seed for the demo registry and SimPy replay (same as GoldenHour's SEED) so every run is reproducible from config (spec \u00a79).",
+      "provenance": "PLACEHOLDER",
+      "value": 7
+    },
+    "sim.status_misreport_share": {
+      "basis": "TODO: source. Share of hospitals that always report green and never diversion (spec \u00a75: Covid-era Bengaluru bed dashboards showed beds while patients were turned away). Swept.",
+      "provenance": "SIMULATED",
+      "value": 0.1
+    },
+    "sim.status_report_interval_min": {
+      "basis": "TODO: source. Hospitals report ED status (green/amber/red, diversion) every this many minutes (spec \u00a75 live tier).",
+      "provenance": "PLACEHOLDER",
+      "value": 30
+    },
+    "sim.status_stale_interval_min": {
+      "basis": "TODO: source. Reporting interval of stale hospitals; longer than scoring.live_status_max_age_min, so their status is often ignored.",
+      "provenance": "SIMULATED",
+      "value": 240
+    },
+    "sim.status_stale_share": {
+      "basis": "TODO: source. Share of hospitals whose reports go stale (spec \u00a75: self-reported data goes stale). They report only every status_stale_interval_min. Swept.",
+      "provenance": "SIMULATED",
+      "value": 0.2
+    },
+    "sim.stemi_share_without_ecg": {
+      "basis": "TODO: source. True STEMI share among chest-pain patients with no ECG. The rest are not STEMI (ground truth low acuity), so over-triage of no-ECG chest pain shows up honestly. Swept.",
+      "provenance": "SIMULATED",
+      "value": 0.25
+    },
+    "sim.stroke_lvo_share": {
+      "basis": "TODO: source. Share of stroke calls with a large-vessel occlusion. Only changes the recorded stroke score; LVO bypass is disabled while rules.stroke_lvo_score_cutoff is null.",
+      "provenance": "SIMULATED",
+      "value": 0.3
+    },
+    "sim.stroke_scores": {
+      "basis": "TODO: source. Illustrative prehospital stroke-scale values (RACE-style 0-9) recorded for LVO and non-LVO strokes.",
+      "provenance": "SIMULATED",
+      "value": {
+        "lvo": 6,
+        "non_lvo": 2
+      }
+    },
+    "sim.sweep_window_days": {
+      "basis": "Method choice for runtime: each sensitivity scenario replays one contiguous block of this many days (seeded start, ~3,000 incidents) so per-hospital ambulance load stays realistic. Not a world assumption.",
+      "provenance": "PLACEHOLDER",
+      "value": 6
+    },
+    "sim.trauma_severe_share": {
+      "basis": "TODO: source. Share of trauma calls that are severe (unstable vitals, need a trauma centre). Swept.",
+      "provenance": "SIMULATED",
+      "value": 0.2
+    },
+    "sim.travel_noise_sigma": {
+      "basis": "TODO: source. Actual drive = expected time-dependent drive x lognormal noise with mean 1 and this sigma. The advisor never sees the draw; it ranks on p80 = expected x travel.pessimistic_multiplier_p80. Swept.",
+      "provenance": "PLACEHOLDER",
+      "value": 0.25
+    },
+    "sim.vitals_profiles": {
+      "basis": "Illustrative vitals placed clearly either side of rules.unstable_vitals so triage sees what the sampled patient is. Not clinical data.",
+      "provenance": "SIMULATED",
+      "value": {
+        "stable": {
+          "gcs": 15,
+          "rr": 16,
+          "sbp": 120
+        },
+        "unstable_medical": {
+          "gcs": 14,
+          "rr": 32,
+          "sbp": 100
+        },
+        "unstable_trauma": {
+          "gcs": 12,
+          "rr": 24,
+          "sbp": 80
+        }
+      }
+    },
+    "sim.warmup_hours": {
+      "basis": "Method choice: background ED arrivals start this many hours before the window so ED queues are not empty when the first incident arrives.",
+      "provenance": "PLACEHOLDER",
+      "value": 24
+    }
+  },
+  "simplifications": [
+    "No fleet model: every incident has its own ambulance; dispatch and response are module A's job.",
+    "Scene location is the H3 cell centre of the synthetic call.",
+    "An accepted pre-alert is honoured on arrival, except for sim.accepted_prealert_refused_on_arrival_share (0 in the base case, swept).",
+    "Hospitals answer a pre-alert instantly or not at all; an unanswered one costs prealert.response_timeout_s while the ambulance waits at the scene.",
+    "If every pre-alerted hospital rejects, the crew drives unannounced to the advisor's top choice.",
+    "Refusal chance depends only on the hospital's true ED status (sim.reject_*), the same with or without a pre-alert; after sim.max_refusals_per_patient refusals the next capable hospital must take the patient.",
+    "ED offload queue is first-come first-served (no triage priority at the gate).",
+    "STEMI counts as treated at a cath lab or a thrombolysis centre; onward PCI transfer is not modelled.",
+    "Stroke counts as treated at CT + thrombolysis; thrombectomy is not scored separately.",
+    "Gate dwell fed to the advisor's passive index = arrival to departure at the gate (offload wait + handover, or time to a refusal), as 108 GPS would see it.",
+    "Travel uses free-flow shortest paths on the real OSM road graph with placeholder speeds and hourly congestion; actual drives add lognormal noise the advisor does not see.",
+    "Hospital size class (ED bays, background load) is read from capabilities: PCI -> tertiary, CT -> secondary, else primary."
+  ],
+  "sweep_window": {
+    "end": "2026-10-26T00:00:00",
+    "n_incidents": 3323,
+    "start": "2026-10-20T00:00:00"
+  },
+  "todo_params": [
+    "passive.dwell_window_days",
+    "passive.min_dwell_samples",
+    "prealert.response_timeout_s",
+    "reliability.decay_half_life_days",
+    "reliability.prior_total",
+    "rules.stroke_lvo_score_cutoff",
+    "rules.stroke_thrombectomy_extra_travel_limit_min",
+    "rules.trauma_max_travel_min",
+    "scoring.ed_status_when_unknown",
+    "scoring.live_status_max_age_min",
+    "scoring.low_acuity_travel_cap_min",
+    "sim.accepted_prealert_refused_on_arrival_share",
+    "sim.background_arrivals_per_hour_by_class",
+    "sim.background_hourly_profile",
+    "sim.chest_pain_ecg_shares",
+    "sim.demo_hospital_count",
+    "sim.demo_tier_capabilities",
+    "sim.demo_tier_shares",
+    "sim.ed_bays_by_class",
+    "sim.ed_status_queue_per_bay",
+    "sim.ed_stay_mean_min",
+    "sim.handover_min",
+    "sim.max_refusals_per_patient",
+    "sim.other_paediatric_share",
+    "sim.other_unstable_share",
+    "sim.prealert_no_answer_share",
+    "sim.refusal_gate_min",
+    "sim.registry_error_share",
+    "sim.reject_base_rate",
+    "sim.reject_max_prob",
+    "sim.reject_status_multiplier",
+    "sim.status_misreport_share",
+    "sim.status_report_interval_min",
+    "sim.status_stale_interval_min",
+    "sim.status_stale_share",
+    "sim.stemi_share_without_ecg",
+    "sim.stroke_lvo_share",
+    "sim.stroke_scores",
+    "sim.trauma_severe_share",
+    "sim.travel_noise_sigma",
+    "travel.ambulance_speed_multiplier",
+    "travel.detour_factor",
+    "travel.fallback_free_flow_kmh",
+    "travel.pessimistic_multiplier_p80"
+  ],
+  "window": {
+    "end": "2026-11-01T00:00:00",
+    "n_incidents": 14875,
+    "start": "2026-10-04T00:00:00"
+  }
+}

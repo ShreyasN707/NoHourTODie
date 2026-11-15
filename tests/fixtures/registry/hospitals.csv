@@ -1,0 +1,4 @@
+hospital_id,name,lat,lon,ownership,empanelment,icu_beds_total,ventilators_total,provenance,source,as_of
+fx-a,Hospital A (fictional),12.97,77.59,govt,PMJAY;SAST,20,10,SIMULATED,test fixture,
+fx-b,Hospital B (fictional),12.93,77.62,private,PMJAY,,,SIMULATED,test fixture,
+fx-c,Hospital C (fictional),13.01,77.55,private,,5,2,SIMULATED,test fixture,

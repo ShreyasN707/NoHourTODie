@@ -1,0 +1,8 @@
+Sr_No,Location_Coordinates,Location,Hospital_Name,Hospital_Category,State,District
+1,"12.9700, 77.5900",Fictional Road,Hospital P (fictional),Public/ Government,Karnataka,Bengaluru
+2,"12.9500, 77.6000",Fictional Road,Hospital Q (fictional),Private,Karnataka,Bengaluru
+3,,Fictional Road,Hospital R (fictional),Private,Karnataka,Bengaluru
+4,"0, 0",Fictional Road,Hospital S (fictional),Private,Karnataka,Bengaluru
+5,"not a coordinate",Fictional Road,Hospital T (fictional),Private,Karnataka,Bengaluru
+6,"13.0000, 77.5000",Fictional Road,Hospital U (fictional),Trust,Karnataka,Bengaluru
+7,"19.0000, 72.8000",Fictional Road,Hospital V (fictional),Private,Maharashtra,Mumbai
