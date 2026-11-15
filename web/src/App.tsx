@@ -58,7 +58,7 @@ export default function App() {
   const [planType, setPlanType] = useState<'baseline' | 'static' | 'goldenhour'>('goldenhour')
   const [blockId, setBlockId] = useState<number>(4) // Default to Evening Peak (16:00-20:00)
   const [layerMode, setLayerMode] = useState<'cover' | 'nearest' | 'demand' | 'reach'>('cover')
-  const [bottomTab, setBottomTab] = useState<'none' | 'wards' | 'stress' | 'fleet' | 'forecast' | 'papers' | 'sources'>('none')
+  const [bottomTab, setBottomTab] = useState<'none' | 'wards' | 'stress' | 'fleet' | 'forecast' | 'sources'>('none')
 
   // Operator usability state
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
@@ -93,12 +93,12 @@ export default function App() {
     setSearchQuery('')
 
     Promise.all([
-      fetch(`/data/cells_${region}.json`).then((r) => r.json()),
-      fetch(`/data/sites_${region}.json`).then((r) => r.json()),
-      fetch(`/data/scenarios_${region}.json`).then((r) => r.json()),
-      fetch('/data/zones.geojson').then((r) => r.json()).catch(() => null),
-      fetch('/data/forecast.json').then((r) => r.json()).catch(() => null),
-      fetch('/data/meta.json').then((r) => r.json()).catch(() => null),
+      fetch(`${import.meta.env.BASE_URL}data/cells_${region}.json`).then((r) => r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/sites_${region}.json`).then((r) => r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/scenarios_${region}.json`).then((r) => r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/zones.geojson`).then((r) => r.json()).catch(() => null),
+      fetch(`${import.meta.env.BASE_URL}data/forecast.json`).then((r) => r.json()).catch(() => null),
+      fetch(`${import.meta.env.BASE_URL}data/meta.json`).then((r) => r.json()).catch(() => null),
     ])
       .then(([cellsData, sitesData, scenariosData, zonesData, fcData, metaData]) => {
         setCells(cellsData)
@@ -625,7 +625,7 @@ export default function App() {
                 border: '1px solid #334155',
               }}
             >
-              LIVE 108
+              MODELLED DATA
             </span>
           </div>
           <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', lineHeight: 1.4 }}>
@@ -692,7 +692,7 @@ export default function App() {
                 1. Today: Hospital Proportional (CAG Baseline)
               </div>
               <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Parked exclusively at government tertiary hospitals by catchment. 0 bike paramedics.
+                Ambulances wait at hospitals, shared out by population, the same all day. No bikes. This is how the 2020 CAG audit found them.
               </div>
             </button>
 
@@ -735,7 +735,7 @@ export default function App() {
                 </span>
               </div>
               <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '3px' }}>
-                Shift-responsive relocation, 30 bike first-responders, and 25% smooth shift repositioning via HiGHS solver.
+                Standby spots change every 4 hours with demand and traffic, bikes give first help, and at most a quarter of ambulances move between blocks. Planned with the HiGHS solver.
               </div>
             </button>
           </div>
@@ -758,11 +758,12 @@ export default function App() {
           <div>
             <span style={{ color: '#94a3b8' }}>Fleet on Road: </span>
             <span style={{ fontWeight: 700, color: '#f8fafc' }}>
-              {scenarios?.baseline?.fleet?.ambulances || 0} Ambulances
+              {currScenario?.fleet?.ambulances ?? 0} Ambulances
             </span>
-            {region === 'blr' && (
-              <span style={{ color: '#f97316', fontWeight: 800 }}> + 30 Bikes</span>
+            {(currScenario?.fleet?.bikes ?? 0) > 0 && (
+              <span style={{ color: '#f97316', fontWeight: 800 }}> + {currScenario.fleet.bikes} Bikes</span>
             )}
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>About 74% of the fleet is on the road at any time.</div>
           </div>
           <div style={{ borderLeft: '1px solid #334155', paddingLeft: '10px' }}>
             <span style={{ color: '#94a3b8' }}>Mandate: </span>
@@ -848,7 +849,7 @@ export default function App() {
               {currSim ? currSim.within_target_pct + '%' : '--'}
             </div>
             <div style={{ fontSize: '11px', color: deltaTarget >= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaTarget >= 0 ? `+${deltaTarget.toFixed(1)}%` : `${deltaTarget.toFixed(1)}%`} vs Today
+              {deltaTarget >= 0 ? `+${deltaTarget.toFixed(1)}` : `${deltaTarget.toFixed(1)}`} pts vs Today
             </div>
           </div>
 
@@ -881,7 +882,7 @@ export default function App() {
               {currSim ? `${currSim.first_help_10m_pct}%` : '--'}
             </div>
             <div style={{ fontSize: '11px', color: deltaBike >= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaBike >= 0 ? `+${deltaBike.toFixed(1)}%` : `${deltaBike.toFixed(1)}%`} (Bike Impact)
+              {deltaBike >= 0 ? `+${deltaBike.toFixed(1)}` : `${deltaBike.toFixed(1)}`} pts vs Today
             </div>
           </div>
         </div>
@@ -936,15 +937,20 @@ export default function App() {
               🔴 To: {selectedMove.to_name}
             </div>
             <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 700, marginTop: '4px' }}>
-              Estimated Transit: {selectedMove.travel_min} minutes via Primary Road
+              Estimated drive: {selectedMove.travel_min} minutes
             </div>
           </div>
         )}
 
         {/* Current Block Status Note */}
         <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', fontSize: '12px', color: '#cbd5e1', marginBottom: '10px', border: '1px solid #1e293b' }}>
-          During this shift ({BLOCK_NAMES[blockId].split(' ')[0]}), expected vehicle busy fraction is{' '}
-          <strong style={{ color: '#38bdf8' }}>q = {currBlockPlan?.q ?? 0.3}</strong>.
+          {currSim?.per_block?.[blockId] && baseSim?.per_block?.[blockId] && (
+            <div style={{ marginBottom: '4px' }}>
+              In this block, <strong style={{ color: '#f8fafc' }}>{currSim.per_block[blockId].within_target_pct}%</strong> of calls are reached within {targetMin} minutes
+              (today: {baseSim.per_block[blockId].within_target_pct}%).
+            </div>
+          )}
+          About <strong style={{ color: '#38bdf8' }}>{Math.round((currBlockPlan?.q ?? 0) * 100)}%</strong> of ambulances are busy on a call at any moment.
           {planType === 'goldenhour' && blockMoves.length > 0 && (
             <div style={{ marginTop: '5px', color: '#f59e0b', fontWeight: 700 }}>
               ➔ {blockMoves.length} ambulance relocations scheduled across sites for shift rebalancing.
@@ -1016,20 +1022,6 @@ export default function App() {
               }}
             >
               Demand Forecast
-            </button>
-            <button
-              onClick={() => setBottomTab(bottomTab === 'papers' ? 'none' : 'papers')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'papers' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              Paper Gaps (v2)
             </button>
             <button
               onClick={() => setBottomTab(bottomTab === 'sources' ? 'none' : 'sources')}
@@ -1242,7 +1234,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: '#f8fafc', fontWeight: 600 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <img src="/icons/icon-als.svg" width="20" height="20" alt="ALS" />
-                <span style={{ color: '#fca5a5' }}>ALS Ambulance (ICU)</span>
+                <span style={{ color: '#fca5a5' }}>Advanced (ALS) Ambulance</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <img src="/icons/icon-bls.svg" width="20" height="20" alt="BLS" />
@@ -1348,7 +1340,6 @@ export default function App() {
                 {bottomTab === 'stress' && 'Stress Testing & System Resilience Battery'}
                 {bottomTab === 'fleet' && 'Fleet Scaling Curve: How Many Vehicles Does Karnataka Need?'}
                 {bottomTab === 'forecast' && 'Demand Forecasting: LightGBM vs 4-Week Moving Average'}
-                {bottomTab === 'papers' && 'Research Paper Gaps (arXiv 2508.20953 & arXiv 2507.15385)'}
                 {bottomTab === 'sources' && 'Assumptions, Data Sources & Official Citations'}
               </h2>
               <button
@@ -1432,26 +1423,33 @@ export default function App() {
             )}
 
             {/* Tab 3: Fleet Curve */}
-            {bottomTab === 'fleet' && scenarios?.fleet_curve && (
-              <div>
-                <p style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '10px', lineHeight: 1.5 }}>
-                  Simulated expected coverage floor across fleet sizes. In Bengaluru, doubling ambulances from 72 to 144 yields diminishing returns (+4%), whereas in rural Tumakuru, reaching the 10-minute target is mathematically impossible without at least 75+ vehicles.
-                </p>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  {scenarios.fleet_curve.map((fc: any, i: number) => (
-                    <div key={i} style={{ flex: 1, backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>{fc.multiplier}x Fleet</div>
-                      <div style={{ fontSize: '20px', fontWeight: 800, margin: '4px 0', color: '#38bdf8' }}>
-                        {fc.ambulances} Amb
+            {bottomTab === 'fleet' && scenarios?.fleet_curve && (() => {
+              const fc = scenarios.fleet_curve as any[]
+              const today = fc.find((x) => x.multiplier === 1) ?? fc[0]
+              const best = fc[fc.length - 1]
+              const hit = fc.find((x) => x.within_target_pct >= 90)
+              return (
+                <div>
+                  <p style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '10px', lineHeight: 1.5 }}>
+                    Each column re-plans the fleet with GoldenHour and replays the same 4 weeks of calls. With today's {today.ambulances} ambulances
+                    (about {today.on_road} on the road), {today.within_target_pct}% of calls are reached within {scenarios.target_min} minutes.
+                    With {best.ambulances}, it is {best.within_target_pct}%.{' '}
+                    {hit ? `About ${hit.ambulances} ambulances are needed to reach 90% of calls in time.` : `Even ${best.ambulances} ambulances do not reach 90% of calls in time, so this target needs more than extra vehicles.`}
+                  </p>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    {fc.map((x: any, i: number) => (
+                      <div key={i} style={{ flex: 1, backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', textAlign: 'center', border: x.multiplier === 1 ? '1px solid #38bdf8' : '1px solid #334155' }}>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{x.multiplier === 1 ? 'Today' : `${x.multiplier}x fleet`}</div>
+                        <div style={{ fontSize: '20px', fontWeight: 800, margin: '4px 0', color: '#38bdf8' }}>{x.ambulances} ambulances</div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{x.on_road} on the road</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#10b981', marginTop: '4px' }}>{x.within_target_pct}% in time</div>
+                        <div style={{ fontSize: '11px', color: '#cbd5e1' }}>median {x.median_min} min, slowest 1 in 10 {x.p90_min} min</div>
                       </div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#10b981' }}>
-                        {fc.expected_cover_pct}% Cov
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Tab 4: Forecast */}
             {bottomTab === 'forecast' && (
@@ -1472,35 +1470,6 @@ export default function App() {
                   </div>
                 </div>
                 <div>{renderForecastChart()}</div>
-              </div>
-            )}
-
-            {/* Tab 5: Papers */}
-            {bottomTab === 'papers' && (
-              <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                <p style={{ marginBottom: '8px' }}>
-                  <strong>Paper 1 (arXiv 2508.20953 - NSGA-II Rostering) & Paper 2 (arXiv 2507.15385 - Transformer MIP Pruning):</strong>
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div style={{ backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', border: '1px solid #334155' }}>
-                    <div style={{ fontWeight: 800, color: '#ef4444' }}>Paper 1 Gap & Our Answer</div>
-                    <div style={{ marginTop: '4px' }}>
-                      <strong>Gap:</strong> Soft penalties for patient care trade away critical health outcomes for staff satisfaction.
-                    </div>
-                    <div style={{ marginTop: '4px', color: '#10b981' }}>
-                      <strong>Our Answer:</strong> Patient care is a hard constraint floor (50% ward equity floor, critical ALS weighting); crew moves are optimized second.
-                    </div>
-                  </div>
-                  <div style={{ backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', border: '1px solid #334155' }}>
-                    <div style={{ fontWeight: 800, color: '#38bdf8' }}>Paper 2 Gap & Our Answer</div>
-                    <div style={{ marginTop: '4px' }}>
-                      <strong>Gap:</strong> Evaluated on toy 13-node grid; Acc1 only ~64%; tied to fixed bus network.
-                    </div>
-                    <div style={{ marginTop: '4px', color: '#10b981' }}>
-                      <strong>Our Answer:</strong> Candidate sites represented as tokens on 1.7M-node OpenStreetMap road graph; transfers seamlessly between urban Bengaluru and rural Tumakuru.
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
