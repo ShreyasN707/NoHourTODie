@@ -11,6 +11,7 @@ import {
 import Map from 'react-map-gl/maplibre'
 import { FlyToInterpolator, WebMercatorViewport } from '@deck.gl/core'
 import Assistant, { dispatchLayers, type Dispatch } from './Assistant'
+import { adviceLayers, advicePoints, type Advice } from './AdviceCard'
 import LiveOps from './ops/LiveOps'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ChevronLeft, ChevronRight, Pause, Play, Search, X } from 'lucide-react'
@@ -85,6 +86,7 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   const [selectedMove, setSelectedMove] = useState<any | null>(null)
   const [viewState, setViewState] = useState<any>(INITIAL_VIEW_STATES.blr)
   const [activeDispatch, setActiveDispatch] = useState<Dispatch | null>(null)
+  const [activeAdvice, setActiveAdvice] = useState<Advice | null>(null)
 
   // Black spots: where the ambulance could not reach in time, and the re-plans that fix them
   const [spotLoaded, setSpotLoaded] = useState<{ region: string; data: BlackSpotData | null } | null>(null)
@@ -117,7 +119,8 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   // Handle region switch and fetch
   useEffect(() => {
     // keep the camera on an assistant dispatch that caused this region switch
-    if (!(activeDispatch && activeDispatch.region === region)) setViewState(INITIAL_VIEW_STATES[region])
+    if (!((activeDispatch && activeDispatch.region === region) || (activeAdvice && activeAdvice.region === region)))
+      setViewState(INITIAL_VIEW_STATES[region])
     setSelectedStation(null)
     setSelectedMove(null)
     setSearchQuery('')
@@ -624,12 +627,9 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
     )
   }
 
-  const showDispatch = (d: Dispatch | null) => {
-    setActiveDispatch(d)
-    if (!d) return
-    if (d.region !== region) setRegion(d.region as 'blr' | 'tmk')
-    // fit the whole response (units, patient, hospital) into the part of the map not covered by panels
-    const pts = [...d.ambulance.path, ...(d.bike?.path ?? []), ...d.hospital.path]
+  // fit points into the part of the map not covered by panels
+  const fitTo = (pts: [number, number][]) => {
+    if (!pts.length) return
     const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1])
     const width = Math.max(400, window.innerWidth - 400), height = window.innerHeight - 56
     const wide = width > 900
@@ -639,6 +639,25 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
     )
     setViewState((v: any) => ({ ...v, longitude: fit.longitude, latitude: fit.latitude, zoom: fit.zoom, pitch: 0, bearing: 0,
       transitionDuration: 1500, transitionInterpolator: new FlyToInterpolator() }))
+  }
+
+  const showDispatch = (d: Dispatch | null) => {
+    setActiveDispatch(d)
+    if (!d) return
+    setActiveAdvice(null)
+    if (d.region !== region) setRegion(d.region as 'blr' | 'tmk')
+    // the whole response: units, patient, hospital
+    fitTo([...d.ambulance.path, ...(d.bike?.path ?? []), ...d.hospital.path] as [number, number][])
+  }
+
+  // Fleet advice from the assistant: that day's late hexagons and the suggested moves, on the plan block it is for
+  const showAdvice = (a: Advice | null) => {
+    setActiveAdvice(a)
+    if (!a) return
+    setActiveDispatch(null)
+    if (a.region !== region) setRegion(a.region)
+    setBlockId(a.block)
+    fitTo(advicePoints(a))
   }
 
   // The assistant orb and panel sit left of the docked panel
@@ -654,6 +673,9 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
     if (!object) return null
     const spotHtml = spotTooltipHtml(object, targetMin, spotLabels)
     if (spotHtml) return tip(spotHtml)
+    if (Array.isArray(object) && typeof object[0] === 'string') return tip(`<b>${object[1]} late call${object[1] > 1 ? 's' : ''}</b> here on the day looked back at`)
+    if (object.from && object.to && object.kind)
+      return tip(`<b>Move ${object.n}: ${object.kind}</b><br/>${object.from.name} (${object.from.zone})<br/>→ ${object.to.name} (${object.to.zone})<br/>${object.drive_min} min drive`)
     if (object.h3) {
       const lam = object.lam?.[blockId] || 0
       return tip(`<b>${object.zone}</b><br/>${object.pop.toLocaleString()} people<br/>${lam.toFixed(2)} calls per hour now`)
@@ -669,7 +691,7 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
 
   // Live calls: quieter map (coverage faint, no plan moves) so incoming calls and routes stand out
   const shownLayers = (() => {
-    const quiet = view === 'live' || activeDispatch
+    const quiet = view === 'live' || activeDispatch || activeAdvice
     // Black spots sit just above the coverage hexagons, under borders, moves and vehicles
     const withSpots = (ls: any[]) => {
       const i = ls.findIndex((l: any) => l.id === 'h3-hexagons')
@@ -679,14 +701,23 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
     return [
       ...withSpots(
         layers
-          .filter((l: any) => !['admin-zones', 'crew-moves-arcs', 'move-arrival-rings'].includes(l.id))
-          .map((l: any) => (l.id === 'h3-hexagons' ? l.clone({ opacity: activeDispatch || spotLayers.length ? 0.12 : 0.22 }) : l)),
+          .filter((l: any) => !['admin-zones', 'crew-moves-arcs', 'move-arrival-rings', ...(activeAdvice ? ['h3-hexagons'] : [])].includes(l.id))
+          .map((l: any) => (l.id === 'h3-hexagons' ? l.clone({ opacity: activeDispatch || activeAdvice || spotLayers.length ? 0.12 : 0.22 }) : l)),
       ),
+      ...adviceLayers(activeAdvice),
       ...dispatchLayers(activeDispatch),
     ]
   })()
 
   const legend = () => {
+    if (activeAdvice)
+      return (
+        <div className="legend">
+          <span><i style={{ background: 'rgba(214,51,74,.75)' }} />Late calls on {new Date(activeAdvice.day + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} (darker = more)</span>
+          <span><i className="ln" style={{ background: 'linear-gradient(90deg, #5B6675, #1F5FD1)' }} />Suggested move ({activeAdvice.block_label})</span>
+          <button className="btn small" onClick={() => setActiveAdvice(null)}>Clear moves</button>
+        </div>
+      )
     if (activeDispatch)
       return (
         <div className="legend">
@@ -1053,7 +1084,7 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
       ) : (
         planPanel
       )}
-      <Assistant onDispatch={showDispatch} />
+      <Assistant onDispatch={showDispatch} onAdvice={showAdvice} region={region} />
     </div>
   )
 }

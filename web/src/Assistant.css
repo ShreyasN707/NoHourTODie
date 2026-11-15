@@ -59,3 +59,19 @@
 .gh-msg.bot:has(.gh-card) { max-width: 100%; width: 100%; padding: 0; border: 0; background: transparent; }
 .gh-msg.bot:has(.gh-card) > div:first-child { padding: 0 2px 2px; }
 .gh-card, .gh-row, .gh-row-text { min-width: 0; }
+
+/* fleet advice card */
+.gh-advice { gap: 12px; }
+.gh-adv-title { font-weight: 700; font-size: 14px; }
+.gh-adv-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--paper, #F2F4F7); margin: 6px 0 4px; }
+.gh-adv-bar span { display: block; height: 100%; }
+.gh-adv-key { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted, #5B6675); }
+.gh-adv-key span { display: inline-flex; align-items: center; gap: 4px; }
+.gh-adv-key i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.gh-adv-sub { font-size: 12.5px; color: var(--muted, #5B6675); line-height: 1.45; margin-top: 2px; }
+.gh-moves { list-style: none; display: grid; gap: 10px; margin: 0; padding: 0; }
+.gh-moves li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+.gh-move-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--action, #1F5FD1);
+  color: #fff; font-size: 12px; }
+.gh-move-main { font-size: 13.5px; }
+.gh-adv-check { font-size: 12.5px; line-height: 1.45; padding: 8px 10px; border-radius: 8px; background: #E3F4EC; color: #12573A; }

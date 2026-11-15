@@ -134,3 +134,31 @@ def test_exported_payload_is_consistent(reg):
         if st["prev"]:
             a, b = black[st["prev"]], black[st["key"]]
             assert st["vs_prev"] == {"resolved": len(a - b), "remaining": len(a & b), "new": len(b - a)}
+
+
+@pytest.mark.skipif(not (WEB_DATA_DIR / "scenarios_tmk.json").exists() or not (PROCESSED_DIR / "calls_tmk.parquet").exists(),
+                    reason="needs `make package`")
+def test_fleet_advice_moves_are_feasible_and_checked():
+    """The assistant's fleet advice: a day in the log, moves between real sites within the drive limit,
+    and only moves that do not add late calls on the weeks before are kept."""
+    from datetime import date
+
+    from pipeline.advise import ADVICE_MAX_MOVE_MIN, ADVICE_MAX_MOVES, RegionAdvisor
+
+    adv = RegionAdvisor("tmk")
+    a = adv.advise(day="yesterday", hour=9, today=date(2026, 11, 15))
+    assert a["day"] == adv.last_day.isoformat() and a["day_note"]  # past the log: falls back, and says so
+    assert a["block"] == 2 and a["block_label"] == "8 am–12 pm"
+    lb = a["looked_back"]
+    assert lb["late"] == sum(lb["by_cause"].values()) == sum(n for _, n in lb["late_cells"])
+    assert len(a["moves"]) <= ADVICE_MAX_MOVES
+    ids = set(adv.sites["site_id"])
+    for m in a["moves"]:
+        assert m["from"]["site_id"] in ids and m["to"]["site_id"] in ids and m["from"]["site_id"] != m["to"]["site_id"]
+        assert m["drive_min"] <= ADVICE_MAX_MOVE_MIN
+    if a["check"]:
+        assert a["check"]["after"]["late"] <= a["check"]["before"]["late"]
+        assert a["check"]["after"]["calls"] == a["check"]["before"]["calls"]
+    # a day inside the log is used as asked
+    assert adv.resolve_day("2026-10-01", today=date(2026, 11, 15)) == (date(2026, 10, 1), None)
+    assert "late" in a["reply"] or "keep" in a["reply"]

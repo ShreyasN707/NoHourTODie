@@ -9,6 +9,9 @@ in the arguments. Everything else is plain, testable code, and the reply after a
                      hospital (decision-model judgments from pipeline/facilities.py), DRAFT alerts. Alerts are
                      only "sent" (logged) when the dispatcher presses Confirm.
   region_summary / ward_stats -> numbers straight from the simulation results
+  fleet_advice    -> replays a day's calls (default: yesterday) and plans ambulance moves for a block today,
+                     checked on the 12 weeks before (pipeline/advise.py); the card and map show the moves
+  black_spots     -> the 12-week black spots, their causes and the fix stages (pipeline/blackspots.py output)
 Token budget per call: short system prompt + 3 compact tools + the last few text turns; minimal thinking;
 output capped. Tool results are never sent back to the model.
 
@@ -33,6 +36,7 @@ from google import genai
 from google.genai import types
 
 import places
+from pipeline import advise as fleet_advisor
 from pipeline.config import (ALS_EXTRA_MIN, AMBULANCE_SPEED_MULTIPLIER, BENGALURU_HOURLY_CONGESTION, CALL_MIX,
                              PLANNING_BLOCKS, PRE_TRAVEL_MIN, PROCESSED_DIR, REGIONS, WEB_DATA_DIR)
 
@@ -67,11 +71,15 @@ for r, cfg in REGIONS.items():
     sc = json.load(open(WEB_DATA_DIR / f"scenarios_{r}.json"))
     REG[r] = dict(cfg=cfg, cells=set(cells.h3_index), sites=sites, sc=sc,
                   hospitals=sites[sites.site_type == "hospital"])
-if not places.OUT.exists():
-    places.build()
-PLACES = pd.read_parquet(places.OUT)
-if "emergency" not in PLACES:  # index from an older build
-    places.build(); PLACES = pd.read_parquet(places.OUT)
+try:
+    if not places.OUT.exists():
+        places.build()
+    PLACES = pd.read_parquet(places.OUT)
+    if "emergency" not in PLACES:  # index from an older build
+        places.build(); PLACES = pd.read_parquet(places.OUT)
+except Exception as e:  # no osmium or no data/raw/area.osm.pbf: coarser search, everything else unchanged
+    print(f"[assistant] full place index unavailable ({type(e).__name__}); using standby sites and ward names")
+    PLACES = places.fallback_index()
 ER_NAMES = set(PLACES[(PLACES.kind == "hospital") & (PLACES.emergency == "yes")].key)
 _H = None
 
@@ -340,7 +348,42 @@ def ward_stats(name: str) -> dict:
     return dict(reply=f"I couldn't find a ward or taluk called \"{name}\".")
 
 
-TOOLS = {f.__name__: f for f in (dispatch, region_summary, ward_stats)}
+def region_code(region: str | None, default: str = "blr") -> str:
+    q = (region or "").lower()
+    if "tum" in q or q == "tmk":
+        return "tmk"
+    if "beng" in q or "bang" in q or "blr" in q:
+        return "blr"
+    return default
+
+
+def fleet_advice(region: str = "", day: str = "yesterday", hour: int | None = None) -> dict:
+    """Where calls were late on a day and which ambulance moves to make for a block today."""
+    r = region_code(region)
+    a = fleet_advisor.advise(r, day=day or "yesterday", hour=now_hour() if hour is None else int(hour) % 24)
+    return dict(reply=a.pop("reply"), advice=a)
+
+
+def black_spots(region: str = "") -> dict:
+    """The 12-week black spots for a region: how many, the worst ones and what each fix stage does."""
+    r = region_code(region)
+    path = WEB_DATA_DIR / f"blackspots_{r}.json"
+    if not path.exists():
+        return dict(reply="Black-spot results are not generated yet: run make blackspots.")
+    d = json.loads(path.read_text(encoding="utf-8"))
+    by = {s["key"]: s for s in d["scenarios"]}
+    cur = by["current"]
+    worst = "; ".join(f"#{c['id']} {c['zones'][0]} ({c['late']} of {c['calls']} late, fix: {c['fix'].lower()})"
+                      for c in cur["clusters"][:3])
+    stages = ", ".join(f"{s['label'].lower()} {s['kpis']['black_spots']}" for s in d["stages"][1:])
+    weeks = round(d["windows"]["days"] / 7)
+    return dict(reply=(f"{d['region_name']}, {weeks} simulated weeks to {d['windows']['test']['end']}: "
+                       f"{cur['kpis']['black_spots']} black spots with the GoldenHour plan "
+                       f"({cur['vs_before']['chronic']} also in the {weeks} weeks before). Worst: {worst}. "
+                       f"Fixes: {stages}. See Fleet plan, Black spots."), spots=dict(region=r))
+
+
+TOOLS = {f.__name__: f for f in (dispatch, region_summary, ward_stats, fleet_advice, black_spots)}
 DECLS = [
     types.FunctionDeclaration(
         name="dispatch",
@@ -355,9 +398,28 @@ DECLS = [
     types.FunctionDeclaration(
         name="ward_stats", description="Response-time results for one ward or taluk.",
         parameters_json_schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}),
+    types.FunctionDeclaration(
+        name="fleet_advice",
+        description=("How to rearrange, move or reposition ambulances today, based on where calls were late on a "
+                     "past day (default yesterday) or on black spots. Replays that day and plans moves for one "
+                     "time of day."),
+        parameters_json_schema={"type": "object", "properties": {
+            "region": {"type": "string", "description": "Bengaluru or Tumakuru; omit if not said"},
+            "day": {"type": "string", "description": "'yesterday' (default), 'today' or YYYY-MM-DD"},
+            "hour": {"type": "integer", "description": "0-23: time of day to plan for, only if the user gives one "
+                                                       "(evening 18, morning 9, night 1)"}}}),
+    types.FunctionDeclaration(
+        name="black_spots",
+        description="Where the black spots are (areas the ambulance repeatedly could not reach in time), why, and "
+                    "what re-placing, new posts or more ambulances do about them.",
+        parameters_json_schema={"type": "object", "properties": {
+            "region": {"type": "string", "description": "Bengaluru or Tumakuru; omit if not said"}}}),
 ]
 SYSTEM = ("You are the GoldenHour assistant in Karnataka's 108 ambulance control room (Bengaluru, Tumakuru). "
           "Patient location or route request -> call dispatch. Performance questions -> region_summary or ward_stats. "
+          "Rearranging, moving or repositioning ambulances/the fleet, or what to change after yesterday's late calls "
+          "-> fleet_advice. Where help is late / black spots -> black_spots. "
+          "Messages may be voice-typed: 'sports'/'spot' can mean black spots, 'feet'/'fleet' the fleet. "
           "Otherwise answer in 1-3 short sentences. Never invent numbers. Reply in the user's language.")
 
 
@@ -374,22 +436,77 @@ SESSIONS: dict = {}
 USAGE = dict(calls=0, input_tokens=0, output_tokens=0)
 
 
-def chat(session: str, message: str) -> dict:
+# When Gemini is overloaded or unreachable, clear planning questions still reach their tool by keywords.
+# Dispatch is never guessed this way: a patient's place needs the model (and the dispatcher) to read it.
+FALLBACK_ROUTES = [
+    ("fleet_advice", r"rearrang|re-arrang|reposition|re-position|relocat|move (my |the )?(ambulance|unit|fleet)|"
+                     r"(fleet|feet|ambulances?|units?) (today|tonight|now)|where should .*(ambulance|unit)"),
+    ("black_spots", r"black ?spot|blackspot|sports?\b.*(where|which|show)|where .*(late|can.?t reach|could not reach)"),
+]
+
+
+def fallback_call(message: str, region: str):
+    import re
+    q = message.lower()
+    for name, pat in FALLBACK_ROUTES:
+        if re.search(pat, q):
+            args = {"region": region_code(q, region)}
+            if name == "fleet_advice":
+                m = re.search(r"\b(\d{1,2})\s*(am|pm)\b", q)
+                if m:
+                    args["hour"] = int(m.group(1)) % 12 + (12 if m.group(2) == "pm" else 0)
+                elif "evening" in q or "tonight" in q:
+                    args["hour"] = 18
+                elif "morning" in q:
+                    args["hour"] = 9
+                elif "night" in q:
+                    args["hour"] = 1
+            return types.FunctionCall(name=name, args=args)
+    return None
+
+
+def generate(contents):
+    """One Gemini call, retried twice on overload/rate limits (503/429/500), with a short backoff."""
+    import time
+    for attempt in range(3):
+        try:
+            return CLIENT.models.generate_content(model=MODEL, contents=contents, config=CONFIG)
+        except Exception as e:
+            code = getattr(e, "code", None)
+            if attempt == 2 or code not in (429, 500, 503):
+                raise
+            time.sleep(1.5 * (attempt + 1))
+
+
+def chat(session: str, message: str, region: str = "blr") -> dict:
     hist = SESSIONS.setdefault(session, [])
     contents = hist[-HISTORY_TURNS:] + [types.Content(role="user", parts=[types.Part(text=message)])]
-    resp = CLIENT.models.generate_content(model=MODEL, contents=contents, config=CONFIG)
-    u = resp.usage_metadata
-    with LOCK:
-        USAGE["calls"] += 1
-        USAGE["input_tokens"] += (u.prompt_token_count or 0) if u else 0
-        USAGE["output_tokens"] += ((u.candidates_token_count or 0) + (u.thoughts_token_count or 0)) if u else 0
-    calls = resp.function_calls or []
+    try:
+        resp = generate(contents)
+    except Exception as e:
+        resp = None
+        print(f"[assistant] Gemini unavailable: {type(e).__name__}: {str(e)[:120]}")
+    if resp is not None:
+        u = resp.usage_metadata
+        with LOCK:
+            USAGE["calls"] += 1
+            USAGE["input_tokens"] += (u.prompt_token_count or 0) if u else 0
+            USAGE["output_tokens"] += ((u.candidates_token_count or 0) + (u.thoughts_token_count or 0)) if u else 0
+        calls = resp.function_calls or []
+    else:
+        fb = fallback_call(message, region)
+        if fb is None:
+            return dict(reply="The language model is busy right now. Please try again in a moment.",
+                        dispatch=None, advice=None, spots=None)
+        calls = [fb]
     if calls:
         c = calls[0]
         try:
             args = dict(c.args or {})
             if c.name == "dispatch":
                 args["message"] = message  # the place check judges against the dispatcher's own words
+            if c.name in ("fleet_advice", "black_spots", "region_summary") and not args.get("region"):
+                args["region"] = region     # the region on screen, when the message does not name one
             out = TOOLS[c.name](**args)
         except Exception as e:
             out = dict(reply=f"Sorry, that failed ({type(e).__name__}). Please try again.")
@@ -399,7 +516,7 @@ def chat(session: str, message: str) -> dict:
     hist += [types.Content(role="user", parts=[types.Part(text=message)]),
              types.Content(role="model", parts=[types.Part(text=out["reply"])])]
     del hist[:-HISTORY_TURNS]
-    return dict(reply=out["reply"], dispatch=out.get("dispatch"))
+    return dict(reply=out["reply"], dispatch=out.get("dispatch"), advice=out.get("advice"), spots=out.get("spots"))
 
 
 def confirm(dispatch_id: str) -> dict:
@@ -439,7 +556,8 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             if self.path == "/api/chat":
                 msg = str(body.get("message", ""))[:2000]
-                return self._json(200, chat(str(body.get("session", "default"))[:64], msg))
+                reg = "tmk" if body.get("region") == "tmk" else "blr"
+                return self._json(200, chat(str(body.get("session", "default"))[:64], msg, reg))
             if self.path == "/api/confirm":
                 return self._json(200, confirm(str(body.get("dispatch_id", ""))))
             if self.path == "/api/reset":

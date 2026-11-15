@@ -104,3 +104,27 @@ if __name__ == "__main__":
     df = pd.read_parquet(OUT)
     for q in ("Dayananda Sagar College", "Sadashivanagar", "Victoria Hospital"):
         print(q, "->", search(df, q, 2))
+
+
+def fallback_index() -> pd.DataFrame:
+    """Small in-memory index when the full one cannot be built (no osmium or no data/raw/area.osm.pbf): the
+    standby sites (hospitals, clinics, police, fire and fuel stations) and ward/taluk centres from the pipeline.
+    Place search is coarser, but the assistant still starts and dispatch still works."""
+    rows = []
+    for r in ("blr", "tmk"):
+        sites = pd.read_parquet(PROCESSED_DIR / f"sites_{r}.parquet")
+        for s in sites.itertuples(index=False):
+            name = str(s.name).strip()
+            kind = {"fire": "fire_station", "health_centre": "clinic", "fuel": "amenity"}.get(s.site_type, s.site_type)
+            if name and name.lower() != "nan":
+                rows.append(dict(name=name, kind=kind, lat=float(s.lat), lon=float(s.lon), area=""))
+        cells = pd.read_parquet(PROCESSED_DIR / f"cells_{r}.parquet")
+        for zone, g in cells.groupby("zone"):
+            rows.append(dict(name=str(zone), kind="place", lat=float(g.lat.mean()), lon=float(g.lon.mean()), area=""))
+    df = pd.DataFrame(rows)
+    df["name_kn"] = ""
+    df["housenumber"] = ""
+    df["emergency"] = ""
+    df["rank"] = df.kind.map(RANK).fillna(1).astype(int)
+    df["key"] = df.name.map(norm)
+    return df.sort_values("rank", ascending=False).drop_duplicates(["key", "kind"]).reset_index(drop=True)

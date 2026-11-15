@@ -194,6 +194,13 @@ Open **Fleet plan** and pick **Black spots** in the map colours. On **Live calls
 
 Files: `pipeline/blackspots.py`, thresholds `BLACKSPOT_*` in `pipeline/config.py`, map code in `web/src/blackspots/`, tests in `tests/test_blackspots.py`.
 
+**Ask the assistant.** With `make assistant` running, ask for example "Based on yesterday's black spots, how should I rearrange my fleet today?". Voice-typed wording such as "sports" and "feet" works too. The assistant calls `fleet_advice` (`pipeline/advise.py`), which takes a few seconds:
+1. It replays that day's calls through the GoldenHour plan and finds where help was late, and why. The modelled log ends on 31 Oct 2026, so "yesterday" means that day, and the reply says so.
+2. It plans up to 5 ambulance moves for the current 4-hour block (or a time you name). The method is a greedy swap search on the MEXCLP coverage objective, with extra weight where calls were late that day and on 12-week black spots. Each move is a drive of at most 25 minutes.
+3. It checks the moves on the 12 weeks before and keeps only as many as cut late calls there.
+
+The chat shows a card with the moves, and the map draws them as arcs over that day's late hexagons. "Where are the black spots?" calls `black_spots`. If Gemini is overloaded, the server retries, then routes clear fleet and black-spot questions by keyword. Without the full OSM place index, the assistant starts with a smaller index of standby sites and ward names.
+
 
 ---
 

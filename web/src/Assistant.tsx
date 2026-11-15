@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import './Assistant.css'
 import { PathLayer, ScatterplotLayer } from '@deck.gl/layers'
+import { AdviceCard, type Advice } from './AdviceCard'
 
 // One assistant request per message the user sends: nothing is fetched on load, while typing, or in the background.
 
@@ -19,10 +20,14 @@ export type Dispatch = {
   note: string
   alt?: string | null
 }
-type Msg = { role: 'user' | 'bot'; text: string; dispatch?: Dispatch; sent?: { to: string; text: string; at: string }[] }
+type Msg = { role: 'user' | 'bot'; text: string; dispatch?: Dispatch; advice?: Advice; sent?: { to: string; text: string; at: string }[] }
 
 const SESSION = Math.random().toString(36).slice(2)
-const SUGGESTIONS = ['Patient at DSCE college, bike accident', 'Chest pain at Sadashivanagar', 'How is Tumakuru doing?']
+const SUGGESTIONS = [
+  'Patient at DSCE college, bike accident',
+  'Based on yesterday\'s black spots, how should I rearrange my fleet today?',
+  'Where are the black spots?',
+]
 
 async function post(path: string, body: unknown) {
   const r = await fetch(`/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -145,10 +150,14 @@ function DispatchCard({ d, sent, onConfirm, onShow }: { d: Dispatch; sent?: { to
   )
 }
 
-export default function Assistant({ onDispatch }: { onDispatch: (d: Dispatch | null) => void }) {
+export default function Assistant({ onDispatch, onAdvice, region }: {
+  onDispatch: (d: Dispatch | null) => void
+  onAdvice: (a: Advice | null) => void
+  region: 'blr' | 'tmk'
+}) {
   const [open, setOpen] = useState(() => new URLSearchParams(location.search).has('assistant')) // ?assistant opens it (demo links)
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'bot', text: 'Tell me where the patient is and what happened, or ask how an area is doing. I plan the nearest unit and route; you confirm before any alert is sent.' },
+    { role: 'bot', text: 'Tell me where the patient is and what happened, ask how an area is doing, or ask how to rearrange the fleet after yesterday\'s late calls. I plan; you confirm before anything is sent.' },
   ])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -165,9 +174,10 @@ export default function Assistant({ onDispatch }: { onDispatch: (d: Dispatch | n
     setBusy(true)
     setMsgs((m) => [...m, { role: 'user', text: t }])
     try {
-      const r = await post('chat', { session: SESSION, message: t })
-      setMsgs((m) => [...m, { role: 'bot', text: r.reply, dispatch: r.dispatch || undefined }])
+      const r = await post('chat', { session: SESSION, message: t, region })
+      setMsgs((m) => [...m, { role: 'bot', text: r.reply, dispatch: r.dispatch || undefined, advice: r.advice || undefined }])
       if (r.dispatch) onDispatch(r.dispatch)
+      if (r.advice) onAdvice(r.advice)
     } catch {
       setMsgs((m) => [...m, { role: 'bot', text: 'The assistant server is not reachable. Start it with: make assistant' }])
     } finally {
@@ -194,7 +204,7 @@ export default function Assistant({ onDispatch }: { onDispatch: (d: Dispatch | n
             <Orb size={30} />
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>GoldenHour Assistant</div>
-              <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Plans the unit and route. You confirm.</div>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Plans units, routes and fleet moves. You confirm.</div>
             </div>
             <button className="gh-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
           </div>
@@ -203,6 +213,7 @@ export default function Assistant({ onDispatch }: { onDispatch: (d: Dispatch | n
               <div key={i} className={`gh-msg ${m.role}`}>
                 <div>{m.text}</div>
                 {m.dispatch && <DispatchCard d={m.dispatch} sent={m.sent} onConfirm={() => confirm(i, m.dispatch!)} onShow={() => onDispatch(m.dispatch!)} />}
+                {m.advice && <AdviceCard a={m.advice} onShow={() => onAdvice(m.advice!)} />}
               </div>
             ))}
             {busy && <div className="gh-msg bot gh-typing"><span /><span /><span /></div>}
