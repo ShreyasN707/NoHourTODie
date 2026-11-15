@@ -9,3 +9,5 @@ __pycache__/
 *.egg-info/
 .DS_Store
 export_fixed.log
+.env
+.venv

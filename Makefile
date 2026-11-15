@@ -1,4 +1,4 @@
-.PHONY: all setup data geo travel demand forecast export web test run clean
+.PHONY: all setup data assistant geo travel demand forecast export web test run clean
 
 VENV = .venv/bin/python
 NPM = npm
@@ -32,6 +32,10 @@ export:
 
 web:
 	cd web && $(NPM) run build
+
+# Dispatch assistant backend on :8787 (needs GEMINI_API_KEY in .env); the dev server proxies /api to it
+assistant:
+	$(VENV) backend/assistant.py
 
 run:
 	cd web && $(NPM) run dev
