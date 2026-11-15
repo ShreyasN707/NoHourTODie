@@ -203,7 +203,7 @@ export default function App() {
     currBlockPlan.deployments.forEach((d: any) => {
       const totalTypes = (d.a > 0 ? 1 : 0) + (d.b > 0 ? 1 : 0) + (d.y > 0 ? 1 : 0)
 
-      // ALS Ambulance (Red Triangle)
+      // ALS Ambulance
       if (d.a > 0) {
         const offX = totalTypes > 1 ? -0.0008 : 0
         const offY = totalTypes > 1 ? 0.0006 : 0
@@ -211,7 +211,7 @@ export default function App() {
           ...d,
           vType: 'ALS',
           count: d.a,
-          iconUrl: '/icons/shape-triangle-als.svg',
+          iconUrl: '/icons/icon-als.svg',
           color: [239, 68, 68],
           offsetX: offX,
           offsetY: offY,
@@ -220,13 +220,13 @@ export default function App() {
           badges.push({
             lat: d.lat + offY + 0.0010,
             lon: d.lon + offX,
-            text: `${d.a}×`,
+            text: `${d.a}× ALS`,
             color: [239, 68, 68],
           })
         }
       }
 
-      // BLS Ambulance (Blue Square)
+      // BLS Ambulance
       if (d.b > 0) {
         const offX = totalTypes > 1 ? 0.0008 : 0
         const offY = totalTypes > 1 ? -0.0006 : 0
@@ -234,7 +234,7 @@ export default function App() {
           ...d,
           vType: 'BLS',
           count: d.b,
-          iconUrl: '/icons/shape-square-bls.svg',
+          iconUrl: '/icons/icon-bls.svg',
           color: [59, 130, 246],
           offsetX: offX,
           offsetY: offY,
@@ -243,13 +243,13 @@ export default function App() {
           badges.push({
             lat: d.lat + offY + 0.0010,
             lon: d.lon + offX,
-            text: `${d.b}×`,
+            text: `${d.b}× BLS`,
             color: [59, 130, 246],
           })
         }
       }
 
-      // Bike Paramedic (Orange Circle)
+      // Bike Paramedic
       if (d.y > 0) {
         const offX = totalTypes > 2 ? 0 : (totalTypes > 1 ? 0.0008 : 0)
         const offY = totalTypes > 1 ? 0.0012 : 0
@@ -257,7 +257,7 @@ export default function App() {
           ...d,
           vType: 'Bike',
           count: d.y,
-          iconUrl: '/icons/shape-circle-bike.svg',
+          iconUrl: '/icons/icon-bike.svg',
           color: [249, 115, 22],
           offsetX: offX,
           offsetY: offY,
@@ -266,7 +266,7 @@ export default function App() {
           badges.push({
             lat: d.lat + offY + 0.0010,
             lon: d.lon + offX,
-            text: `${d.y}×`,
+            text: `${d.y}× Bike`,
             color: [249, 115, 22],
           })
         }
@@ -409,7 +409,7 @@ export default function App() {
         })
       : null
 
-    // 6. Crisp Geometric Vehicle Symbols (IconLayer)
+    // 6. Professional Ambulance & Vehicle Symbols (IconLayer)
     const vehicleIconsLayer = showVehicles
       ? new IconLayer({
         id: 'vehicle-icons',
@@ -417,14 +417,14 @@ export default function App() {
         pickable: true,
         getIcon: (d: any) => ({
           url: d.iconUrl,
-          width: 36,
-          height: 36,
-          anchorY: 18,
-          anchorX: 18,
+          width: 64,
+          height: 64,
+          anchorY: 32,
+          anchorX: 32,
         }),
         sizeScale: 1,
         getPosition: (d: any) => [d.lon + (d.offsetX || 0), d.lat + (d.offsetY || 0)],
-        getSize: (d: any) => (d.count > 1 ? 26 : 22),
+        getSize: (d: any) => (d.count > 1 ? 32 : 26),
         onClick: ({ object }: any) => {
           if (object) setSelectedStation(object)
         },
@@ -1237,20 +1237,20 @@ export default function App() {
           {/* Operator Legend & Symbols */}
           <div style={{ borderTop: '1px solid #334155', marginTop: '10px', paddingTop: '10px' }}>
             <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', letterSpacing: '0.05em' }}>
-              Fleet Indications (Shapes & Colors)
+              Fleet Symbols
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: '#f8fafc', fontWeight: 600 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/shape-triangle-als.svg" width="16" height="16" alt="ALS" />
-                <span style={{ color: '#fca5a5' }}><strong style={{ color: '#ef4444' }}>▲</strong> ALS (ICU)</span>
+                <img src="/icons/icon-als.svg" width="20" height="20" alt="ALS" />
+                <span style={{ color: '#fca5a5' }}>ALS Ambulance (ICU)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/shape-square-bls.svg" width="16" height="16" alt="BLS" />
-                <span style={{ color: '#93c5fd' }}><strong style={{ color: '#3b82f6' }}>■</strong> BLS (Basic)</span>
+                <img src="/icons/icon-bls.svg" width="20" height="20" alt="BLS" />
+                <span style={{ color: '#93c5fd' }}>BLS Ambulance (Basic)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/shape-circle-bike.svg" width="16" height="16" alt="Bike" />
-                <span style={{ color: '#fdba74' }}><strong style={{ color: '#f97316' }}>●</strong> Bike Paramedic</span>
+                <img src="/icons/icon-bike.svg" width="20" height="20" alt="Bike" />
+                <span style={{ color: '#fdba74' }}>Bike Paramedic</span>
               </div>
             </div>
 
