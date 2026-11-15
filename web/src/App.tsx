@@ -394,19 +394,19 @@ export default function App() {
     // 5. High-Visibility Vehicle Backing Halos (Crisp white disc for perfect contrast against any map fill)
     const vehicleHaloLayer = showVehicles
       ? new ScatterplotLayer({
-          id: 'vehicle-halos',
-          data: vehicleMarkers,
-          pickable: false,
-          stroked: true,
-          filled: true,
-          lineWidthMinPixels: 1.5,
-          radiusMinPixels: 13,
-          radiusMaxPixels: 17,
-          getPosition: (d: any) => [d.lon + (d.offsetX || 0), d.lat + (d.offsetY || 0)],
-          getRadius: 160,
-          getFillColor: [255, 255, 255, 240], // Crisp solid white backdrop disc
-          getLineColor: [30, 41, 59, 160],    // Crisp dark slate outline
-        })
+        id: 'vehicle-halos',
+        data: vehicleMarkers,
+        pickable: false,
+        stroked: true,
+        filled: true,
+        lineWidthMinPixels: 1.5,
+        radiusMinPixels: 13,
+        radiusMaxPixels: 17,
+        getPosition: (d: any) => [d.lon + (d.offsetX || 0), d.lat + (d.offsetY || 0)],
+        getRadius: 160,
+        getFillColor: [255, 255, 255, 240], // Crisp solid white backdrop disc
+        getLineColor: [30, 41, 59, 160],    // Crisp dark slate outline
+      })
       : null
 
     // 6. Professional Ambulance & Vehicle Symbols (IconLayer)
