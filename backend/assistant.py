@@ -165,16 +165,11 @@ def dispatch(place: str, call_type: str = "other", hour: int | None = None) -> d
     d = plan_dispatch(c["lat"], c["lon"], c["label"], call_type, hour)
     if "error" in d:
         return dict(reply=d["error"])
-    a, h = d["ambulance"], d["hospital"]
-    ok = "within" if a["within_target"] else "beyond"
+    a = d["ambulance"]
+    d["alt"] = cands[1]["label"] if len(cands) > 1 else None
     where = c["label"] if c["label"].startswith("near ") else f"at {c['label']}"
-    txt = (f"Patient {where}. Nearest {a['kind']} ambulance is at {a['from_site']}, about {a['eta_min']} min away "
-           f"({ok} the {d['target_min']}-min target at {d['hour']:02d}:00 traffic).")
-    if d["bike"]:
-        txt += f" A bike first responder from {d['bike']['from_site']} can reach in about {d['bike']['eta_min']} min."
-    txt += f" Nearest hospital: {h['name']}, {h['eta_min']} min from the patient. Press Confirm to send the alerts."
-    if len(cands) > 1:
-        txt += f" (Wrong place? I also found: {cands[1]['label']}.)"
+    # the card on screen carries the details; the message stays one line
+    txt = f"Help is planned for the patient {where}. Check the details and press Confirm to alert the team."
     return dict(reply=txt, dispatch=d)
 
 
