@@ -12,12 +12,18 @@ import Map from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   Activity,
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Layers,
   Pause,
   Play,
   Search,
   X,
+  Zap,
 } from 'lucide-react'
 
 // Initial map camera views
@@ -486,10 +492,13 @@ export default function App() {
     const targetBin = Math.round(targetMin)
 
     return (
-      <div style={{ marginTop: '14px', backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-          <span style={{ fontWeight: 600, color: '#f8fafc' }}>Response Distribution (0–60 min)</span>
-          <span style={{ color: '#ef4444', fontWeight: 700 }}>Mandate: {targetMin}m</span>
+      <div className="cmd-card">
+        <div className="cmd-card-header">
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ffffff' }}>
+            <BarChart3 size={13} color="#38bdf8" />
+            Response Distribution (0–60 min)
+          </span>
+          <span style={{ color: '#ef4444', fontWeight: 800 }}>Mandate: {targetMin}m</span>
         </div>
         <svg width="100%" height="70" style={{ background: '#090d16', borderRadius: '6px', padding: '4px' }}>
           {/* Target line */}
@@ -583,210 +592,335 @@ export default function App() {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', backgroundColor: '#090d16' }}>
-      {/* 1. Left Sidebar: Operator Command Center */}
+      {/* 1. Left Sidebar: Operator Command Center (Rebuilt) */}
       <div
+        className="sidebar-container"
         style={{
-          width: '430px',
-          minWidth: '400px',
+          width: '450px',
+          minWidth: '420px',
           height: '100%',
-          backgroundColor: '#0c1322',
-          borderRight: '1px solid #1e293b',
+          backgroundColor: '#070b14',
+          backgroundImage: 'radial-gradient(circle at 10% 20%, rgba(30, 58, 138, 0.12) 0%, transparent 40%)',
+          borderRight: '1.5px solid rgba(255, 255, 255, 0.1)',
           zIndex: 10,
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
-          padding: '18px 20px',
-          boxShadow: '4px 0 24px rgba(0,0,0,0.6)',
+          padding: '20px 18px',
+          boxShadow: '6px 0 32px rgba(0, 0, 0, 0.75)',
         }}
       >
-        {/* Header */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ backgroundColor: '#ef4444', padding: '6px', borderRadius: '8px', display: 'flex' }}>
-              <Activity color="#ffffff" size={22} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.5px', color: '#f8fafc', lineHeight: 1.1 }}>
-                GoldenHour
-              </h1>
-              <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>
-                PES University Zero Hour • Track 3: Optimisation
+        {/* Header Bar */}
+        <div
+          style={{
+            marginBottom: '16px',
+            paddingBottom: '14px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 16px rgba(239, 68, 68, 0.5)',
+                }}
+              >
+                <Activity color="#ffffff" size={22} strokeWidth={2.5} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h1 style={{ fontSize: '21px', fontWeight: 900, letterSpacing: '-0.4px', color: '#ffffff', lineHeight: 1 }}>
+                    GoldenHour
+                  </h1>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '2px 8px',
+                      borderRadius: '5px',
+                      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      fontWeight: 800,
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    108 CAD
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, marginTop: '3px' }}>
+                  Karnataka Emergency Fleet Allocation
+                </div>
               </div>
             </div>
-            <span
+
+            {/* Live Beacon */}
+            <div
               style={{
-                marginLeft: 'auto',
-                fontSize: '11px',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                backgroundColor: '#1e293b',
-                color: '#10b981',
-                fontWeight: 700,
-                border: '1px solid #334155',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                boxShadow: '0 0 12px rgba(16, 185, 129, 0.2)',
               }}
             >
-              LIVE 108
-            </span>
+              <span className="pulse-beacon" />
+              <span style={{ fontSize: '11px', color: '#34d399', fontWeight: 800 }}>LIVE</span>
+            </div>
           </div>
-          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', lineHeight: 1.4 }}>
-            Karnataka 108 Emergency Ambulance Fleet Allocation & Multi-Period Response Planner
-          </p>
         </div>
 
-        {/* Region Switcher Tabs */}
-        <div style={{ display: 'flex', backgroundColor: '#131d31', borderRadius: '8px', padding: '3px', marginBottom: '14px', border: '1px solid #1e293b' }}>
+        {/* Region Switcher */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            backgroundColor: '#0c1322',
+            padding: '4px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            gap: '6px',
+            marginBottom: '14px',
+          }}
+        >
           <button
             onClick={() => setRegion('blr')}
             style={{
-              flex: 1,
-              padding: '8px 10px',
-              borderRadius: '6px',
-              border: 'none',
+              padding: '9px 10px',
+              borderRadius: '7px',
               backgroundColor: region === 'blr' ? '#2563eb' : 'transparent',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '12.5px',
-              transition: 'background 0.2s',
+              color: region === 'blr' ? '#ffffff' : '#94a3b8',
+              fontWeight: 800,
+              fontSize: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: region === 'blr' ? '1px solid #60a5fa' : '1px solid transparent',
+              boxShadow: region === 'blr' ? '0 2px 10px rgba(37, 99, 235, 0.5)' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
           >
-            Greater Bengaluru (Urban)
+            <span>🏙️ Bengaluru (Urban)</span>
+            <span style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px', fontWeight: 600 }}>15m Mandate</span>
           </button>
           <button
             onClick={() => setRegion('tmk')}
             style={{
-              flex: 1,
-              padding: '8px 10px',
-              borderRadius: '6px',
-              border: 'none',
+              padding: '9px 10px',
+              borderRadius: '7px',
               backgroundColor: region === 'tmk' ? '#2563eb' : 'transparent',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '12.5px',
-              transition: 'background 0.2s',
+              color: region === 'tmk' ? '#ffffff' : '#94a3b8',
+              fontWeight: 800,
+              fontSize: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: region === 'tmk' ? '1px solid #60a5fa' : '1px solid transparent',
+              boxShadow: region === 'tmk' ? '0 2px 10px rgba(37, 99, 235, 0.5)' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
           >
-            Tumakuru District (Rural)
+            <span>🌾 Tumakuru (Rural)</span>
+            <span style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px', fontWeight: 600 }}>10m Mandate</span>
           </button>
         </div>
 
-        {/* Strategy Selector */}
-        <div style={{ marginBottom: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, letterSpacing: '0.6px' }}>
-              Strategic Deployment Model
-            </label>
+        {/* Section 1: Strategic Deployment Model */}
+        <div
+          style={{
+            backgroundColor: '#0f172a',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '10px',
+            padding: '13px 14px',
+            marginBottom: '13px',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '9px' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Layers size={13} color="#38bdf8" />
+              Deployment Strategy
+            </span>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: planType === 'goldenhour' ? '#34d399' : '#38bdf8' }}>
+              {planType === 'goldenhour' ? '★ Optimal Dynamic' : planType === 'static' ? 'Static Fixed' : 'CAG Baseline'}
+            </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px', marginBottom: '9px' }}>
             <button
               onClick={() => setPlanType('baseline')}
               style={{
-                textAlign: 'left',
-                padding: '9px 12px',
+                padding: '9px 6px',
                 borderRadius: '8px',
-                border: planType === 'baseline' ? '1.5px solid #3b82f6' : '1px solid #1e293b',
-                backgroundColor: planType === 'baseline' ? '#172554' : '#111827',
-                color: '#f8fafc',
+                backgroundColor: planType === 'baseline' ? '#1e293b' : '#080d1a',
+                color: planType === 'baseline' ? '#ffffff' : '#94a3b8',
+                border: planType === 'baseline' ? '1.5px solid #64748b' : '1px solid rgba(255, 255, 255, 0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                cursor: 'pointer',
+                textAlign: 'center',
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: '12.5px', color: planType === 'baseline' ? '#60a5fa' : '#f8fafc' }}>
-                1. Today: Hospital Proportional (CAG Baseline)
-              </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Parked exclusively at government tertiary hospitals by catchment. 0 bike paramedics.
-              </div>
+              <span style={{ fontSize: '11.5px', fontWeight: 800 }}>1. Baseline</span>
+              <span style={{ fontSize: '9px', opacity: 0.75 }}>CAG Audit</span>
             </button>
-
             <button
               onClick={() => setPlanType('static')}
               style={{
-                textAlign: 'left',
-                padding: '9px 12px',
+                padding: '9px 6px',
                 borderRadius: '8px',
-                border: planType === 'static' ? '1.5px solid #3b82f6' : '1px solid #1e293b',
-                backgroundColor: planType === 'static' ? '#172554' : '#111827',
-                color: '#f8fafc',
+                backgroundColor: planType === 'static' ? '#1e3a5f' : '#080d1a',
+                color: planType === 'static' ? '#38bdf8' : '#94a3b8',
+                border: planType === 'static' ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                cursor: 'pointer',
+                textAlign: 'center',
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: '12.5px', color: planType === 'static' ? '#60a5fa' : '#f8fafc' }}>
-                2. Best Fixed Spots (Static Optimization)
-              </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Single fixed 24-hour placement across all POIs, calibrated to peak traffic. No shift moves.
-              </div>
+              <span style={{ fontSize: '11.5px', fontWeight: 800 }}>2. Static</span>
+              <span style={{ fontSize: '9px', opacity: 0.75 }}>Fixed POIs</span>
             </button>
-
             <button
               onClick={() => setPlanType('goldenhour')}
               style={{
-                textAlign: 'left',
-                padding: '10px 12px',
+                padding: '9px 6px',
                 borderRadius: '8px',
-                border: planType === 'goldenhour' ? '1.5px solid #10b981' : '1px solid #1e293b',
-                backgroundColor: planType === 'goldenhour' ? 'rgba(6, 78, 59, 0.35)' : '#111827',
-                color: '#f8fafc',
+                background: planType === 'goldenhour' ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)' : '#080d1a',
+                color: planType === 'goldenhour' ? '#ffffff' : '#a7f3d0',
+                border: planType === 'goldenhour' ? '1.5px solid #10b981' : '1px solid rgba(255, 255, 255, 0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                cursor: 'pointer',
+                textAlign: 'center',
+                boxShadow: planType === 'goldenhour' ? '0 0 12px rgba(16, 185, 129, 0.35)' : 'none',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 800, fontSize: '13px', color: planType === 'goldenhour' ? '#34d399' : '#f8fafc' }}>
-                  3. GoldenHour Dynamic Plan (Rolling MILP)
-                </span>
-                <span style={{ fontSize: '10px', backgroundColor: '#059669', color: '#ffffff', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                  RECOMMENDED
-                </span>
-              </div>
-              <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '3px' }}>
-                Shift-responsive relocation, 30 bike first-responders, and 25% smooth shift repositioning via HiGHS solver.
-              </div>
+              <span style={{ fontSize: '11.5px', fontWeight: 900 }}>3. Dynamic ★</span>
+              <span style={{ fontSize: '9px', opacity: 0.9 }}>MILP + Bikes</span>
             </button>
+          </div>
+
+          {/* Strategy Details Box */}
+          <div
+            style={{
+              padding: '9px 12px',
+              borderRadius: '7px',
+              backgroundColor: planType === 'goldenhour' ? 'rgba(6, 78, 59, 0.35)' : 'rgba(15, 23, 42, 0.7)',
+              border: `1px solid ${planType === 'goldenhour' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.08)'}`,
+              fontSize: '11.5px',
+              color: planType === 'goldenhour' ? '#a7f3d0' : '#cbd5e1',
+              lineHeight: 1.45,
+            }}
+          >
+            {planType === 'baseline' && (
+              <span><strong>Today (CAG Audit Baseline):</strong> Ambulances parked only at government hospitals based on population. Zero bike first-responders.</span>
+            )}
+            {planType === 'static' && (
+              <span><strong>Best Fixed Hotspots:</strong> Static placement selected once for peak rush hour congestion. No shift relocations.</span>
+            )}
+            {planType === 'goldenhour' && (
+              <span><strong>GoldenHour Dynamic Optimization:</strong> Multi-period rolling relocations (≤25% crew fatigue cap) + 30 bike first-responders for rapid bypass.</span>
+            )}
           </div>
         </div>
 
-        {/* Active Fleet & Cabinet Target Badge */}
+        {/* Fleet & Mandate Bar */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '9px 12px',
-            backgroundColor: '#131d31',
-            borderRadius: '8px',
-            fontSize: '12px',
-            marginBottom: '14px',
-            border: '1px solid #1e293b',
+            padding: '10px 14px',
+            backgroundColor: '#0c1322',
+            borderRadius: '9px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            marginBottom: '13px',
           }}
         >
-          <div>
-            <span style={{ color: '#94a3b8' }}>Fleet on Road: </span>
-            <span style={{ fontWeight: 700, color: '#f8fafc' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', fontWeight: 800 }}>Fleet:</span>
+            <span style={{ fontWeight: 900, color: '#ffffff', fontSize: '13px' }}>
               {scenarios?.baseline?.fleet?.ambulances || 0} Ambulances
             </span>
             {region === 'blr' && (
-              <span style={{ color: '#f97316', fontWeight: 800 }}> + 30 Bikes</span>
+              <span style={{ color: '#f97316', fontWeight: 800, backgroundColor: 'rgba(249, 115, 22, 0.16)', padding: '2px 8px', borderRadius: '5px', fontSize: '11px', border: '1px solid rgba(249, 115, 22, 0.35)' }}>
+                + 30 Bikes
+              </span>
             )}
           </div>
-          <div style={{ borderLeft: '1px solid #334155', paddingLeft: '10px' }}>
-            <span style={{ color: '#94a3b8' }}>Mandate: </span>
-            <span style={{ fontWeight: 800, color: '#ef4444' }}>{targetMin} min</span>
+          <div style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.12)', paddingLeft: '12px', textAlign: 'right' }}>
+            <span style={{ color: '#94a3b8', fontSize: '10.5px' }}>Cabinet Target: </span>
+            <span style={{ fontWeight: 900, color: '#ef4444', fontSize: '13px' }}>≤ {targetMin} min</span>
           </div>
         </div>
 
-        {/* Operator Shift Stepper & Auto-Play Controls */}
-        <div style={{ backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', marginBottom: '14px', border: '1px solid #1e293b' }}>
+        {/* Section 2: Shift Horizon Stepper with Quick-Jump Pills */}
+        <div
+          style={{
+            backgroundColor: '#0f172a',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '10px',
+            padding: '13px 14px',
+            marginBottom: '13px',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+          }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>
-                Shift Horizon
-              </span>
-              <span style={{ fontSize: '11px', color: blockId === 4 ? '#ef4444' : '#38bdf8', fontWeight: 700 }}>
-                {blockId === 4 ? '• PEAK RUSH (2.6× Traffic)' : `• Shift ${blockId}`}
-              </span>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Clock size={13} color="#f59e0b" />
+              Shift Horizon (24h)
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '2px 9px',
+                borderRadius: '5px',
+                backgroundColor: blockId === 4 ? 'rgba(239, 68, 68, 0.25)' : 'rgba(56, 189, 248, 0.14)',
+                color: blockId === 4 ? '#f87171' : '#38bdf8',
+                border: `1px solid ${blockId === 4 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(56, 189, 248, 0.3)'}`,
+              }}
+            >
+              {blockId === 4 ? '🔥 PEAK RUSH (2.6× Congestion)' : `Shift ${blockId + 1}/6 • Normal Flow`}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
+              {BLOCK_NAMES[blockId]}
             </div>
 
-            {/* Stepper buttons */}
-            <div style={{ display: 'flex', gap: '4px' }}>
+            {/* Stepper Chevrons & Playback */}
+            <div style={{ display: 'flex', gap: '5px' }}>
               <button
                 onClick={() => setBlockId((prev) => (prev === 0 ? 5 : prev - 1))}
-                style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', color: '#f8fafc' }}
+                style={{
+                  backgroundColor: '#162032',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '5px 8px',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                }}
                 title="Previous Shift"
               >
                 <ChevronLeft size={14} />
@@ -795,15 +929,16 @@ export default function App() {
                 onClick={() => setIsPlaying(!isPlaying)}
                 style={{
                   backgroundColor: isPlaying ? '#ef4444' : '#2563eb',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  padding: '5px 11px',
                   color: '#ffffff',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
+                  gap: '5px',
+                  cursor: 'pointer',
+                  boxShadow: isPlaying ? '0 0 12px rgba(239,68,68,0.5)' : '0 0 12px rgba(37,99,235,0.4)',
                 }}
               >
                 {isPlaying ? <Pause size={12} /> : <Play size={12} />}
@@ -811,7 +946,16 @@ export default function App() {
               </button>
               <button
                 onClick={() => setBlockId((prev) => (prev + 1) % 6)}
-                style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', color: '#f8fafc' }}
+                style={{
+                  backgroundColor: '#162032',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '5px 8px',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                }}
                 title="Next Shift"
               >
                 <ChevronRight size={14} />
@@ -819,8 +963,34 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
-            {BLOCK_NAMES[blockId]}
+          {/* 6 Quick-Click Shift Jump Pills */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', marginBottom: '8px' }}>
+            {[
+              { id: 0, label: '00-04' },
+              { id: 1, label: '04-08' },
+              { id: 2, label: '08-12' },
+              { id: 3, label: '12-16' },
+              { id: 4, label: '16-20 🔥' },
+              { id: 5, label: '20-24' },
+            ].map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setBlockId(s.id)}
+                style={{
+                  padding: '5px 2px',
+                  borderRadius: '5px',
+                  fontSize: '10.5px',
+                  fontWeight: blockId === s.id ? 900 : 700,
+                  backgroundColor: blockId === s.id ? (s.id === 4 ? '#dc2626' : '#2563eb') : '#0b111e',
+                  color: blockId === s.id ? '#ffffff' : '#94a3b8',
+                  border: blockId === s.id ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.08)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
 
           <input
@@ -830,68 +1000,125 @@ export default function App() {
             step={1}
             value={blockId}
             onChange={(e) => setBlockId(Number(e.target.value))}
+            style={{ width: '100%', marginTop: '4px' }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '4px' }}>
-            <span>00:00 (Night)</span>
-            <span>08:00 (Morning)</span>
-            <span style={{ color: '#ef4444', fontWeight: 800 }}>16:00 (Peak Rush)</span>
-            <span>24:00</span>
-          </div>
+
+          {planType === 'goldenhour' && blockMoves.length > 0 && (
+            <div style={{ marginTop: '9px', padding: '7px 10px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.14)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#fbbf24', fontSize: '11px', fontWeight: 700 }}>
+              ➔ {blockMoves.length} crew relocations active between stations this shift.
+            </div>
+          )}
         </div>
 
-        {/* 4 Emergency Response KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+        {/* Section 3: 4 Emergency Response KPI Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '13px' }}>
           {/* KPI 1 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Reached ≤ {targetMin}m Target</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f8fafc' }}>
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '3px solid #10b981',
+              borderRadius: '10px',
+              padding: '12px 13px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>≤ {targetMin}m Target Met</span>
+              <CheckCircle2 size={13} color="#10b981" />
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '4px 0 5px 0', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
               {currSim ? currSim.within_target_pct + '%' : '--'}
             </div>
-            <div style={{ fontSize: '11px', color: deltaTarget >= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaTarget >= 0 ? `+${deltaTarget.toFixed(1)}%` : `${deltaTarget.toFixed(1)}%`} vs Today
+            <div>
+              <span className={deltaTarget >= 0 ? 'delta-pill-good' : 'delta-pill-warn'}>
+                {deltaTarget >= 0 ? `▲ +${deltaTarget.toFixed(1)}%` : `▼ ${deltaTarget.toFixed(1)}%`} vs Base
+              </span>
             </div>
           </div>
 
           {/* KPI 2 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Median Response Time</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f8fafc' }}>
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '3px solid #38bdf8',
+              borderRadius: '10px',
+              padding: '12px 13px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Median Response</span>
+              <Clock size={13} color="#38bdf8" />
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '4px 0 5px 0', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
               {currSim ? `${currSim.median_min}m` : '--'}
             </div>
-            <div style={{ fontSize: '11px', color: deltaMedian <= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaMedian <= 0 ? `${deltaMedian.toFixed(1)} min` : `+${deltaMedian.toFixed(1)} min`} vs Today
+            <div>
+              <span className={deltaMedian <= 0 ? 'delta-pill-good' : 'delta-pill-warn'}>
+                {deltaMedian <= 0 ? `▼ ${Math.abs(deltaMedian).toFixed(1)}m faster` : `▲ +${deltaMedian.toFixed(1)}m`}
+              </span>
             </div>
           </div>
 
           {/* KPI 3 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>90th-Percentile Wait</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f8fafc' }}>
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '3px solid #f59e0b',
+              borderRadius: '10px',
+              padding: '12px 13px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>90th-Pctl Wait</span>
+              <AlertTriangle size={13} color="#f59e0b" />
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '4px 0 5px 0', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
               {currSim ? `${currSim.p90_min}m` : '--'}
             </div>
-            <div style={{ fontSize: '11px', color: deltaP90 <= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaP90 <= 0 ? `${deltaP90.toFixed(1)} min` : `+${deltaP90.toFixed(1)} min`} vs Today
+            <div>
+              <span className={deltaP90 <= 0 ? 'delta-pill-good' : 'delta-pill-warn'}>
+                {deltaP90 <= 0 ? `▼ ${Math.abs(deltaP90).toFixed(1)}m drop` : `▲ +${deltaP90.toFixed(1)}m`}
+              </span>
             </div>
           </div>
 
           {/* KPI 4 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>First Help ≤ 10m</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f97316' }}>
+          <div
+            style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '3px solid #f97316',
+              borderRadius: '10px',
+              padding: '12px 13px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>First Help ≤ 10m</span>
+              <Zap size={13} color="#f97316" />
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 900, color: '#fb923c', margin: '4px 0 5px 0', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
               {currSim ? `${currSim.first_help_10m_pct}%` : '--'}
             </div>
-            <div style={{ fontSize: '11px', color: deltaBike >= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaBike >= 0 ? `+${deltaBike.toFixed(1)}%` : `${deltaBike.toFixed(1)}%`} (Bike Impact)
+            <div>
+              <span className="delta-pill-orange">
+                {deltaBike >= 0 ? `▲ +${deltaBike.toFixed(1)}%` : `${deltaBike.toFixed(1)}%`} Bike
+              </span>
             </div>
           </div>
         </div>
 
         {/* Selected Station / Selected Move Inspector Panel */}
         {selectedStation && (
-          <div style={{ backgroundColor: '#1e293b', padding: '12px', borderRadius: '8px', marginBottom: '14px', border: '1.5px solid #3b82f6', position: 'relative' }}>
+          <div style={{ backgroundColor: '#131d31', border: '2px solid #3b82f6', borderRadius: '10px', padding: '13px', marginBottom: '13px', position: 'relative' }}>
             <button
               onClick={() => setSelectedStation(null)}
-              style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#94a3b8' }}
+              style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
             >
               <X size={16} />
             </button>
@@ -919,10 +1146,10 @@ export default function App() {
         )}
 
         {selectedMove && (
-          <div style={{ backgroundColor: '#1e293b', padding: '12px', borderRadius: '8px', marginBottom: '14px', border: '1.5px solid #ef4444', position: 'relative' }}>
+          <div style={{ backgroundColor: '#131d31', border: '2px solid #ef4444', borderRadius: '10px', padding: '13px', marginBottom: '13px', position: 'relative' }}>
             <button
               onClick={() => setSelectedMove(null)}
-              style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#94a3b8' }}
+              style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
             >
               <X size={16} />
             </button>
@@ -941,109 +1168,50 @@ export default function App() {
           </div>
         )}
 
-        {/* Current Block Status Note */}
-        <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', fontSize: '12px', color: '#cbd5e1', marginBottom: '10px', border: '1px solid #1e293b' }}>
-          During this shift ({BLOCK_NAMES[blockId].split(' ')[0]}), expected vehicle busy fraction is{' '}
-          <strong style={{ color: '#38bdf8' }}>q = {currBlockPlan?.q ?? 0.3}</strong>.
-          {planType === 'goldenhour' && blockMoves.length > 0 && (
-            <div style={{ marginTop: '5px', color: '#f59e0b', fontWeight: 700 }}>
-              ➔ {blockMoves.length} ambulance relocations scheduled across sites for shift rebalancing.
-            </div>
-          )}
-        </div>
-
-        {/* Histogram SVG */}
+        {/* Section 4: Response Time Distribution Curve */}
         {renderHistogram()}
 
-        {/* Bottom Drawer Nav Toggle Pills */}
-        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #1e293b' }}>
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, marginBottom: '6px' }}>
-            Operator Telemetry & Analysis Drawers
+        {/* Section 5: Telemetry Drawers Grid */}
+        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '8px', letterSpacing: '0.07em' }}>
+            Operational Telemetry Drawers
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
             <button
               onClick={() => setBottomTab(bottomTab === 'wards' ? 'none' : 'wards')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'wards' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
+              className={`drawer-btn ${bottomTab === 'wards' ? 'active' : ''}`}
             >
-              Wards / Taluks
+              <span>📊 Wards Leaderboard</span>
             </button>
             <button
               onClick={() => setBottomTab(bottomTab === 'stress' ? 'none' : 'stress')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'stress' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
+              className={`drawer-btn ${bottomTab === 'stress' ? 'active' : ''}`}
             >
-              Stress Tests
+              <span>⚡ Stress Testing</span>
             </button>
             <button
               onClick={() => setBottomTab(bottomTab === 'fleet' ? 'none' : 'fleet')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'fleet' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
+              className={`drawer-btn ${bottomTab === 'fleet' ? 'active' : ''}`}
             >
-              How Many Vehicles?
+              <span>📈 Fleet Sizing</span>
             </button>
             <button
               onClick={() => setBottomTab(bottomTab === 'forecast' ? 'none' : 'forecast')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'forecast' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
+              className={`drawer-btn ${bottomTab === 'forecast' ? 'active' : ''}`}
             >
-              Demand Forecast
+              <span>🧠 Demand ML</span>
             </button>
             <button
               onClick={() => setBottomTab(bottomTab === 'papers' ? 'none' : 'papers')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'papers' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
+              className={`drawer-btn ${bottomTab === 'papers' ? 'active' : ''}`}
             >
-              Paper Gaps (v2)
+              <span>📑 Paper Gaps</span>
             </button>
             <button
               onClick={() => setBottomTab(bottomTab === 'sources' ? 'none' : 'sources')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'sources' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
+              className={`drawer-btn ${bottomTab === 'sources' ? 'active' : ''}`}
             >
-              Verified Sources
+              <span>🔍 CAG Audit Sources</span>
             </button>
           </div>
         </div>
@@ -1143,29 +1311,48 @@ export default function App() {
             top: '16px',
             right: '16px',
             zIndex: 15,
-            backgroundColor: 'rgba(15, 23, 42, 0.94)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid #334155',
-            borderRadius: '8px',
-            padding: '12px 16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            backgroundColor: 'rgba(12, 19, 34, 0.94)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
             maxWidth: '380px',
           }}
         >
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px' }}>
-            Map Layer Metric
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Layers size={14} color="#38bdf8" />
+              <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, letterSpacing: '0.5px' }}>
+                Map Telemetry Metric
+              </span>
+            </div>
+            <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 700 }}>Deck.gl 9.2</span>
           </div>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '4px',
+              backgroundColor: 'rgba(15, 23, 42, 0.6)',
+              padding: '3px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              marginBottom: '10px',
+            }}
+          >
             <button
               onClick={() => setLayerMode('cover')}
               style={{
-                fontSize: '12px',
-                padding: '5px 9px',
+                fontSize: '11.5px',
+                padding: '6px 8px',
                 borderRadius: '5px',
                 border: 'none',
-                backgroundColor: layerMode === 'cover' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
+                backgroundColor: layerMode === 'cover' ? '#2563eb' : 'transparent',
+                color: layerMode === 'cover' ? '#ffffff' : '#94a3b8',
+                fontWeight: layerMode === 'cover' ? 800 : 600,
+                boxShadow: layerMode === 'cover' ? '0 2px 6px rgba(37,99,235,0.4)' : 'none',
               }}
             >
               Chance In-Time
@@ -1173,27 +1360,29 @@ export default function App() {
             <button
               onClick={() => setLayerMode('nearest')}
               style={{
-                fontSize: '12px',
-                padding: '5px 9px',
+                fontSize: '11.5px',
+                padding: '6px 8px',
                 borderRadius: '5px',
                 border: 'none',
-                backgroundColor: layerMode === 'nearest' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
+                backgroundColor: layerMode === 'nearest' ? '#2563eb' : 'transparent',
+                color: layerMode === 'nearest' ? '#ffffff' : '#94a3b8',
+                fontWeight: layerMode === 'nearest' ? 800 : 600,
+                boxShadow: layerMode === 'nearest' ? '0 2px 6px rgba(37,99,235,0.4)' : 'none',
               }}
             >
-              Minutes to Standby
+              Response Time
             </button>
             <button
               onClick={() => setLayerMode('demand')}
               style={{
-                fontSize: '12px',
-                padding: '5px 9px',
+                fontSize: '11.5px',
+                padding: '6px 8px',
                 borderRadius: '5px',
                 border: 'none',
-                backgroundColor: layerMode === 'demand' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
+                backgroundColor: layerMode === 'demand' ? '#2563eb' : 'transparent',
+                color: layerMode === 'demand' ? '#ffffff' : '#94a3b8',
+                fontWeight: layerMode === 'demand' ? 800 : 600,
+                boxShadow: layerMode === 'demand' ? '0 2px 6px rgba(37,99,235,0.4)' : 'none',
               }}
             >
               Demand Heatmap
@@ -1201,13 +1390,14 @@ export default function App() {
             <button
               onClick={() => setLayerMode('reach')}
               style={{
-                fontSize: '12px',
-                padding: '5px 9px',
+                fontSize: '11.5px',
+                padding: '6px 8px',
                 borderRadius: '5px',
                 border: 'none',
-                backgroundColor: layerMode === 'reach' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
+                backgroundColor: layerMode === 'reach' ? '#2563eb' : 'transparent',
+                color: layerMode === 'reach' ? '#ffffff' : '#94a3b8',
+                fontWeight: layerMode === 'reach' ? 800 : 600,
+                boxShadow: layerMode === 'reach' ? '0 2px 6px rgba(37,99,235,0.4)' : 'none',
               }}
             >
               Peak Reachable
@@ -1215,52 +1405,52 @@ export default function App() {
           </div>
 
           {/* Visibility Toggles */}
-          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #1e293b', paddingTop: '8px', fontSize: '11px', color: '#cbd5e1' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '8px', fontSize: '11px', color: '#cbd5e1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={showHexagons} onChange={(e) => setShowHexagons(e.target.checked)} />
-              Hexagons
+              <span>Hex Grid</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={showVehicles} onChange={(e) => setShowVehicles(e.target.checked)} />
-              Vehicles
+              <span>Vehicles</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={showArcs} onChange={(e) => setShowArcs(e.target.checked)} />
-              Relocation Arcs
+              <span>Shift Arcs</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={showWards} onChange={(e) => setShowWards(e.target.checked)} />
-              Wards
+              <span>Wards</span>
             </label>
           </div>
 
           {/* Operator Legend & Symbols */}
-          <div style={{ borderTop: '1px solid #334155', marginTop: '10px', paddingTop: '10px' }}>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', letterSpacing: '0.05em' }}>
-              Fleet Symbols
+          <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', marginTop: '8px', paddingTop: '8px' }}>
+            <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', letterSpacing: '0.5px' }}>
+              Fleet Indications
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: '#f8fafc', fontWeight: 600 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/icon-als.svg" width="20" height="20" alt="ALS" />
-                <span style={{ color: '#fca5a5' }}>ALS Ambulance (ICU)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11.5px', color: '#f8fafc', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <img src="/icons/icon-als.svg" width="18" height="18" alt="ALS" />
+                <span style={{ color: '#fca5a5' }}>ALS (ICU)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/icon-bls.svg" width="20" height="20" alt="BLS" />
-                <span style={{ color: '#93c5fd' }}>BLS Ambulance (Basic)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <img src="/icons/icon-bls.svg" width="18" height="18" alt="BLS" />
+                <span style={{ color: '#93c5fd' }}>BLS (108)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/icon-bike.svg" width="20" height="20" alt="Bike" />
-                <span style={{ color: '#fdba74' }}>Bike Paramedic</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <img src="/icons/icon-bike.svg" width="18" height="18" alt="Bike" />
+                <span style={{ color: '#fdba74' }}>Bike</span>
               </div>
             </div>
 
             {/* Relocation Legend */}
             {blockMoves.length > 0 && planType === 'goldenhour' && showArcs && (
-              <div style={{ marginTop: '8px', fontSize: '11px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(15,23,42,0.6)', padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155' }}>
-                <span style={{ fontWeight: 800, color: '#f59e0b' }}>Shift Relocation:</span>
-                <span style={{ color: '#34d399', fontWeight: 700 }}>🟢 Origin (Start)</span>
-                <span style={{ color: '#94a3b8' }}>────►</span>
-                <span style={{ color: '#f87171', fontWeight: 700 }}>🎯 Target Destination Ring</span>
+              <div style={{ marginTop: '7px', fontSize: '11px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(15,23,42,0.6)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontWeight: 800, color: '#f59e0b' }}>Relocation:</span>
+                <span style={{ color: '#34d399', fontWeight: 700 }}>🟢 Origin</span>
+                <span style={{ color: '#94a3b8' }}>──►</span>
+                <span style={{ color: '#f87171', fontWeight: 700 }}>🎯 Target</span>
               </div>
             )}
           </div>
@@ -1331,10 +1521,11 @@ export default function App() {
               bottom: 0,
               left: 0,
               right: 0,
-              height: '350px',
-              backgroundColor: '#0c1322',
-              borderTop: '2px solid #2563eb',
-              boxShadow: '0 -10px 30px rgba(0,0,0,0.7)',
+              height: '380px',
+              backgroundColor: 'rgba(12, 19, 34, 0.98)',
+              backdropFilter: 'blur(20px)',
+              borderTop: '2.5px solid #2563eb',
+              boxShadow: '0 -12px 40px rgba(0,0,0,0.8)',
               zIndex: 25,
               display: 'flex',
               flexDirection: 'column',
@@ -1342,29 +1533,64 @@ export default function App() {
               overflowY: 'auto',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
-                {bottomTab === 'wards' && 'Municipal Ward & Taluk Response Performance (Sorted Slowest First)'}
-                {bottomTab === 'stress' && 'Stress Testing & System Resilience Battery'}
-                {bottomTab === 'fleet' && 'Fleet Scaling Curve: How Many Vehicles Does Karnataka Need?'}
-                {bottomTab === 'forecast' && 'Demand Forecasting: LightGBM vs 4-Week Moving Average'}
-                {bottomTab === 'papers' && 'Research Paper Gaps (arXiv 2508.20953 & arXiv 2507.15385)'}
-                {bottomTab === 'sources' && 'Assumptions, Data Sources & Official Citations'}
-              </h2>
-              <button
-                onClick={() => setBottomTab('none')}
-                style={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  color: '#94a3b8',
-                  padding: '4px 12px',
-                  borderRadius: '6px',
-                  fontWeight: 700,
-                  fontSize: '12px',
-                }}
-              >
-                Close ✕
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <h2 style={{ fontSize: '15px', fontWeight: 900, color: '#f8fafc', letterSpacing: '-0.3px' }}>
+                  {bottomTab === 'wards' && '📊 Municipal Ward & Taluk Response Performance (Slowest First)'}
+                  {bottomTab === 'stress' && '⚡ Stress Testing & System Resilience Battery'}
+                  {bottomTab === 'fleet' && '📈 Fleet Scaling Curve: How Many Vehicles Does Karnataka Need?'}
+                  {bottomTab === 'forecast' && '🧠 Demand Forecasting: LightGBM vs 4-Week Moving Average'}
+                  {bottomTab === 'papers' && '📑 Research Paper Gaps (arXiv 2508.20953 & arXiv 2507.15385)'}
+                  {bottomTab === 'sources' && '🔍 Assumptions, Data Sources & Official Citations'}
+                </h2>
+              </div>
+
+              {/* In-Drawer Quick Nav Switcher & Close Button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '3px', backgroundColor: 'rgba(15, 23, 42, 0.7)', padding: '3px', borderRadius: '7px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  {[
+                    { id: 'wards', label: 'Wards' },
+                    { id: 'stress', label: 'Stress' },
+                    { id: 'fleet', label: 'Fleet Curve' },
+                    { id: 'forecast', label: 'Forecast' },
+                    { id: 'papers', label: 'Papers' },
+                    { id: 'sources', label: 'Sources' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setBottomTab(t.id as any)}
+                      style={{
+                        padding: '4px 9px',
+                        fontSize: '11px',
+                        fontWeight: bottomTab === t.id ? 800 : 600,
+                        backgroundColor: bottomTab === t.id ? '#2563eb' : 'transparent',
+                        color: bottomTab === t.id ? '#ffffff' : '#94a3b8',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setBottomTab('none')}
+                  style={{
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#f8fafc',
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontWeight: 800,
+                    fontSize: '11.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <X size={14} /> Close
+                </button>
+              </div>
             </div>
 
             {/* Tab 1: Wards */}
