@@ -13,6 +13,7 @@ import { DecisionCard, ExcludedList, RankedList } from './Results'
 import { SimResultsView } from './SimResults'
 import type { Assessment, HealthResponse, HospitalsResponse, RecommendResponse } from './types'
 import { crewTab, crewUrl } from './route'
+
 import './advisor.css'
 
 const INITIAL_FORM: FormState = {
@@ -68,9 +69,11 @@ function buildAssessment(case_id: string, f: FormState, scene: LatLon, base: Lat
 
 type Recs = Partial<Record<DemoHour, RecommendResponse>>
 
-export default function AdvisorView() {
-  const [theme, setTheme] = useState<Theme>(readTheme)
-  const [tab, setTab] = useState<'live' | 'sim'>(crewTab)
+/** `embedded`: inside the GoldenHour shell, which owns the header, tabs and theme (light, live case only;
+ *  the simulation results appear on the shell's Evidence tab). */
+export default function AdvisorView({ embedded = false }: { embedded?: boolean } = {}) {
+  const [theme, setTheme] = useState<Theme>(embedded ? 'light' : readTheme)
+  const [tab, setTab] = useState<'live' | 'sim'>(embedded ? 'live' : crewTab)
   const selectTab = (t: 'live' | 'sim') => {
     setTab(t)
     window.history.replaceState(null, '', crewUrl(t))
@@ -94,12 +97,13 @@ export default function AdvisorView() {
   const [rev, setRev] = useState(0) // bumps per new recommendation; remounts the pre-alert panel
 
   useEffect(() => {
+    if (embedded) return
     try {
       localStorage.setItem(THEME_KEY, theme)
     } catch {
       // storage unavailable: theme just won't persist
     }
-  }, [theme])
+  }, [theme, embedded])
 
   const loadRegistry = useCallback(() => {
     api.health().then(setHealth, () => setHealth(null))
@@ -169,8 +173,8 @@ export default function AdvisorView() {
   const apiDown = hospError != null && recError != null
 
   return (
-    <div className="adv-root" data-theme={theme}>
-      <header className="adv-header">
+    <div className={`adv-root${embedded ? ' adv-root--embedded' : ''}`} data-theme={theme}>
+      {!embedded && <header className="adv-header">
         <div className="adv-brand">
           <span className="adv-brand__mark" aria-hidden="true">
             <HospitalIcon size={20} />
@@ -201,7 +205,7 @@ export default function AdvisorView() {
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </div>
-      </header>
+      </header>}
 
       {banners.map((b) => (
         <DataBanner key={b} text={b} />

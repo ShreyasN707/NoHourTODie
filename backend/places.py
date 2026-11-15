@@ -71,7 +71,7 @@ def norm(s: str) -> str:
 STOP = {"of", "the", "and", "in", "at", "near", "opp", "opposite", "behind", "road", "rd", "no", "house", "karnataka", "india"}
 
 
-def search(df: pd.DataFrame, query: str, k: int = 3) -> list:
+def search(df: pd.DataFrame, query: str, k: int = 6) -> list:
     """Rank named places by how many query words they contain (name beats street/area), then usefulness.
     Partial matches are allowed, so "Dayananda Sagar College of Engineering (DSCE)" still finds
     "Dayananda Sagar College"."""
@@ -94,7 +94,7 @@ def search(df: pd.DataFrame, query: str, k: int = 3) -> list:
     hit = df[m]
     score = (name_w[m] * 100 + any_w[m] * 40 + hit["rank"].values * 3
              - np.clip(np.abs(hit.key.str.len().values - len(" ".join(words))), 0, 60) / 6)
-    return [dict(label=("" if r.nw > 0.99 else "near ") + f"{r.name} ({r.kind.replace('_', ' ')})", lat=r.lat, lon=r.lon,
+    return [dict(label=("" if r.nw > 0.99 else "near ") + f"{r.name} ({r.kind.replace('_', ' ')})", lat=r.lat, lon=r.lon, area=r.area,
                  precision="exact place" if r.nw > 0.99 else "approximate", source="OpenStreetMap (offline)")
             for r in hit.assign(s=score, nw=name_w[m]).sort_values("s", ascending=False).head(k).itertuples()]
 

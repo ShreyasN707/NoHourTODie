@@ -133,6 +133,26 @@ npm run dev
 
 Visit `http://localhost:5173` in your browser to explore the dashboard.
 
+### Live demo: command centre and crew
+
+Run each of these in its own terminal, then open the command centre at `http://localhost:5173` and the crew app at `http://localhost:5173/crew.html` (made for phones: open it on a phone on the same Wi-Fi, or in a narrow browser window).
+
+```bash
+make ops            # live incidents shared by both screens, port 8788
+make advisor-api    # hospital advisor for the crew, port 8000 (needs make advisor-setup and data/raw/goldenhour_data)
+make assistant      # optional chat assistant, port 8787 (needs GEMINI_API_KEY in .env)
+cd web && npm run dev
+```
+
+What happens during the demo:
+1. **A call comes in.** Press "Simulate incoming call" in the Live operations panel. It draws a call for this hour from the modelled call log; in service it would come from the C-DAC system. GoldenHour plans the response straight away: the ambulance (Advanced if the call needs it), a bike if it helps, the road route at this hour's traffic, the nearest hospital, and alerts for the crew, the hospital and the traffic police.
+2. **The operator confirms.** Nothing is sent until a person presses "Confirm and alert crew".
+3. **The crew takes over, one step at a time.** The crew phone shows a large alert with the call type, the drive time against the target and whether a bike is also going, and two buttons: Accept or Reject. Reject hands the job straight to the next-best free unit. After accepting, the phone shows the live map on one side and only the current step on the other: drive to the patient, then say what is wrong (big buttons, vitals optional), then the hospital advisor's top three with how the minutes add up (drive, emergency-room wait, risk of a second transfer), then the drive to the chosen hospital and the handover. On the demo, vehicles move 8 times faster than real time.
+4. **The command centre watches the clock.** Every tap is time-stamped, so each call shows where its minutes went: alert, wheels rolling, drive, time on scene, drive to hospital and handover.
+5. **Coverage is kept.** When a unit leaves its standby spot, the command centre shows which areas no longer have an ambulance within the target, and suggests the one move that closes the gap without opening a bigger one elsewhere. It suggests a move only when the gain is at least 0.05 calls an hour.
+
+All of this is a demo: units are assumed free unless already sent in this session, alerts are only logged, and state is kept in memory.
+
 
 ---
 

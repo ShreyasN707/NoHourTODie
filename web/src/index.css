@@ -1,82 +1,48 @@
+/* GoldenHour design tokens (light "daylight" theme).
+   Chrome stays neutral so the three meaning colours (critical / at risk / in time) are the only loud things on screen. */
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --bg-main: #0f172a;
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
-  --border-color: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-blue: #3b82f6;
-  --accent-red: #ef4444;
-  --accent-amber: #f59e0b;
-  --accent-green: #10b981;
+  --paper: #F2F4F7;        /* app background */
+  --panel: #FFFFFF;        /* docked panels, header */
+  --line: #DCE1E7;         /* dividers, borders */
+  --line-strong: #C3CAD3;
+  --ink: #17202B;          /* text */
+  --muted: #5B6675;        /* secondary text */
+  --action: #1F5FD1;       /* "108 blue": buttons, selection, links */
+  --action-soft: #E9F0FD;
+  --critical: #D6334A;     /* late, ambulance, red = urgent */
+  --risk: #D98A00;         /* at risk */
+  --ok: #1E9C62;           /* in time */
+  --bike: #E2731A;
+  --header-h: 56px;
+  --dock-w: 0px;           /* width of the docked right panel; the assistant orb sits left of it */
+
+  --font-sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
   font-family: var(--font-sans);
-  background-color: var(--bg-main);
-  color: var(--text-primary);
+  background: var(--paper);
+  color: var(--ink);
   font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0f172a;
-}
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
-}
+button { cursor: pointer; font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
 
-button {
-  cursor: pointer;
-  font-family: inherit;
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
 
-/* Range input styling */
-input[type="range"] {
-  -webkit-appearance: none;
-  width: 100%;
-  background: #334155;
-  height: 6px;
-  border-radius: 3px;
-  outline: none;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #3b82f6;
-  cursor: pointer;
-  border: 2px solid #ffffff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-}
+input[type="range"] { width: 100%; accent-color: var(--action); }
 
-.map-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

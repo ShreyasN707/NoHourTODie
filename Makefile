@@ -1,9 +1,9 @@
-.PHONY: all setup data assistant geo travel demand forecast export web test run clean advisor-setup advisor-test advisor-api advisor-sim advisor-report advisor-worklist
+.PHONY: all setup data assistant ops geo facilities travel demand forecast export web test run clean advisor-setup advisor-test advisor-api advisor-sim advisor-report advisor-worklist
 
 VENV = .venv/bin/python
 NPM = npm
 
-all: geo travel demand forecast export web
+all: geo facilities travel demand forecast export web
 
 # One-time: Python env (uv) and the two raw downloads (~580 MB). Geofabrik supports resuming with -C -.
 setup:
@@ -17,6 +17,9 @@ data:
 
 geo:
 	$(VENV) pipeline/geo.py
+
+facilities:
+	$(VENV) pipeline/facilities.py
 
 travel:
 	$(VENV) pipeline/travel.py
@@ -36,6 +39,10 @@ web:
 # Dispatch assistant backend on :8787 (needs GEMINI_API_KEY in .env); the dev server proxies /api to it
 assistant:
 	$(VENV) backend/assistant.py
+
+# Live operations (command centre <-> crew incidents) on :8788; both screens poll it
+ops:
+	$(VENV) backend/ops.py
 
 run:
 	cd web && $(NPM) run dev
@@ -68,3 +75,7 @@ advisor-report:
 
 advisor-worklist:
 	PYTHONPATH=src $(VENV) -m advisor.registry.osm_worklist
+
+# Rural mode: Sakleshpura + Western Ghats (real OSM roads, modelled calls/closures). View at /ruraldemo
+rural:
+	$(VENV) -m pipeline.rural --check && $(VENV) -m pipeline.rural

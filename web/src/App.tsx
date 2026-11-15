@@ -9,16 +9,13 @@ import {
   TextLayer,
 } from '@deck.gl/layers'
 import Map from 'react-map-gl/maplibre'
+import { FlyToInterpolator, WebMercatorViewport } from '@deck.gl/core'
+import Assistant, { dispatchLayers, type Dispatch } from './Assistant'
+import LiveOps from './ops/LiveOps'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import {
-  Activity,
-  ChevronLeft,
-  ChevronRight,
-  Pause,
-  Play,
-  Search,
-  X,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play, Search, X } from 'lucide-react'
+import { SimResultsView } from './advisor/SimResults'
+import './views.css'
 
 // Initial map camera views
 const INITIAL_VIEW_STATES: Record<string, any> = {
@@ -44,21 +41,32 @@ const INITIAL_VIEW_STATES: Record<string, any> = {
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 
-const BLOCK_NAMES = [
-  'Night (00:00 - 04:00)',
-  'Early Morning (04:00 - 08:00)',
-  'Morning Peak (08:00 - 12:00)',
-  'Afternoon (12:00 - 16:00)',
-  'Evening Peak (16:00 - 20:00)',
-  'Late Evening (20:00 - 24:00)',
-]
+export type View = 'live' | 'plan' | 'evidence'
 
-export default function App() {
-  const [region, setRegion] = useState<'blr' | 'tmk'>('blr')
+const PLAN_TEXT: Record<'baseline' | 'static' | 'goldenhour', [string, string]> = {
+  baseline: ["Today's practice", 'Ambulances wait at hospitals, shared out by population, the same all day. No bikes. This is how the 2020 CAG audit found them.'],
+  static: ['Best fixed spots', 'The best single set of standby spots for the whole day, chosen by the optimiser. No bikes, no moves.'],
+  goldenhour: ['GoldenHour', 'Spots change every 4 hours with demand and traffic, bikes give first help, and at most a quarter of ambulances move between blocks.'],
+}
+const LAYER_TEXT: Record<'cover' | 'nearest' | 'demand' | 'reach', string> = {
+  cover: 'In time',
+  nearest: 'Minutes away',
+  demand: 'Calls',
+  reach: 'Reachable',
+}
+const STRESS_LABEL: Record<string, string> = {
+  'Standard Operations': 'A normal day',
+  'Demand Surge (+20%)': '20% more calls',
+  'Severe Traffic Congestion (+20%)': 'Traffic 20% slower',
+  'Fleet Breakdown (60% Available)': 'Only 60% of the fleet on the road',
+}
+const BLOCK_HOURS = ['12–4 am', '4–8 am', '8 am–12 pm', '12–4 pm', '4–8 pm', '8 pm–12 am']
+
+export default function App({ view, region, onRegion }: { view: View; region: 'blr' | 'tmk'; onRegion: (r: 'blr' | 'tmk') => void }) {
+  const setRegion = onRegion
   const [planType, setPlanType] = useState<'baseline' | 'static' | 'goldenhour'>('goldenhour')
   const [blockId, setBlockId] = useState<number>(4) // Default to Evening Peak (16:00-20:00)
   const [layerMode, setLayerMode] = useState<'cover' | 'nearest' | 'demand' | 'reach'>('cover')
-  const [bottomTab, setBottomTab] = useState<'none' | 'wards' | 'stress' | 'fleet' | 'forecast' | 'sources'>('none')
 
   // Operator usability state
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
@@ -67,6 +75,7 @@ export default function App() {
   const [selectedStation, setSelectedStation] = useState<any | null>(null)
   const [selectedMove, setSelectedMove] = useState<any | null>(null)
   const [viewState, setViewState] = useState<any>(INITIAL_VIEW_STATES.blr)
+  const [activeDispatch, setActiveDispatch] = useState<Dispatch | null>(null)
 
   // Layer visibility toggles
   const [showHexagons, setShowHexagons] = useState<boolean>(true)
@@ -87,7 +96,8 @@ export default function App() {
 
   // Handle region switch and fetch
   useEffect(() => {
-    setViewState(INITIAL_VIEW_STATES[region])
+    // keep the camera on an assistant dispatch that caused this region switch
+    if (!(activeDispatch && activeDispatch.region === region)) setViewState(INITIAL_VIEW_STATES[region])
     setSelectedStation(null)
     setSelectedMove(null)
     setSearchQuery('')
@@ -211,7 +221,7 @@ export default function App() {
           ...d,
           vType: 'ALS',
           count: d.a,
-          iconUrl: '/icons/icon-als.svg',
+          iconUrl: `${import.meta.env.BASE_URL}icons/icon-als.svg`,
           color: [239, 68, 68],
           offsetX: offX,
           offsetY: offY,
@@ -234,7 +244,7 @@ export default function App() {
           ...d,
           vType: 'BLS',
           count: d.b,
-          iconUrl: '/icons/icon-bls.svg',
+          iconUrl: `${import.meta.env.BASE_URL}icons/icon-bls.svg`,
           color: [59, 130, 246],
           offsetX: offX,
           offsetY: offY,
@@ -257,7 +267,7 @@ export default function App() {
           ...d,
           vType: 'Bike',
           count: d.y,
-          iconUrl: '/icons/icon-bike.svg',
+          iconUrl: `${import.meta.env.BASE_URL}icons/icon-bike.svg`,
           color: [249, 115, 22],
           offsetX: offX,
           offsetY: offY,
@@ -479,1026 +489,386 @@ export default function App() {
     targetMin,
   ])
 
-  // Histogram SVG Renderer
+  // Response-time distribution: today (grey) vs the selected plan (green within target, amber after)
   const renderHistogram = () => {
     if (!currSim?.histogram || !baseSim?.histogram) return null
-    const maxVal = Math.max(...currSim.histogram, ...baseSim.histogram, 1)
-    const targetBin = Math.round(targetMin)
-
+    const bins = 50
+    const maxVal = Math.max(...currSim.histogram.slice(0, bins), ...baseSim.histogram.slice(0, bins), 1)
+    const t = Math.round(targetMin)
     return (
-      <div style={{ marginTop: '14px', backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-          <span style={{ fontWeight: 600, color: '#f8fafc' }}>Response Distribution (0–60 min)</span>
-          <span style={{ color: '#ef4444', fontWeight: 700 }}>Mandate: {targetMin}m</span>
-        </div>
-        <svg width="100%" height="70" style={{ background: '#090d16', borderRadius: '6px', padding: '4px' }}>
-          {/* Target line */}
-          <line
-            x1={`${(targetBin / 60) * 100}%`}
-            y1="0"
-            x2={`${(targetBin / 60) * 100}%`}
-            y2="70"
-            stroke="#ef4444"
-            strokeDasharray="3 3"
-            strokeWidth="1.5"
-          />
-          {/* Baseline Bars (Gray) */}
-          {baseSim.histogram.map((val: number, i: number) => {
-            if (i > 50) return null
-            const h = (val / maxVal) * 55
-            const x = (i / 50) * 100
-            return (
-              <rect
-                key={`b-${i}`}
-                x={`${x}%`}
-                y={60 - h}
-                width="1.6%"
-                height={h}
-                fill="#64748b"
-                opacity="0.4"
-              />
-            )
-          })}
-          {/* Selected Plan Bars (Green/Amber) */}
-          {currSim.histogram.map((val: number, i: number) => {
-            if (i > 50) return null
-            const h = (val / maxVal) * 55
-            const x = (i / 50) * 100
-            const inTarget = i <= targetBin
-            return (
-              <rect
-                key={`p-${i}`}
-                x={`${x + 0.3}%`}
-                y={60 - h}
-                width="1.4%"
-                height={h}
-                fill={inTarget ? '#10b981' : '#f59e0b'}
-                opacity="0.9"
-              />
-            )
-          })}
+      <figure className="hist" aria-label="Response times over 4 simulated weeks">
+        <svg viewBox="0 0 300 80" preserveAspectRatio="none" role="img">
+          {baseSim.histogram.slice(0, bins).map((v: number, i: number) => (
+            <rect key={`b${i}`} x={i * 6} y={70 - (v / maxVal) * 66} width={5} height={(v / maxVal) * 66} fill="var(--line-strong)" />
+          ))}
+          {currSim.histogram.slice(0, bins).map((v: number, i: number) => (
+            <rect key={`p${i}`} x={i * 6 + 1.5} y={70 - (v / maxVal) * 66} width={2.5} height={(v / maxVal) * 66}
+              fill={i < t ? 'var(--ok)' : 'var(--risk)'} />
+          ))}
+          <line x1={t * 6} x2={t * 6} y1={0} y2={70} stroke="var(--critical)" strokeDasharray="3 3" />
         </svg>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '3px' }}>
-          <span>0m (Instant)</span>
-          <span>15m Target</span>
-          <span>30m</span>
-          <span>45m</span>
-          <span>60m+</span>
-        </div>
-      </div>
+        <figcaption>
+          <span>0</span><span style={{ color: 'var(--critical)' }}>{t} min target</span><span>50+ min</span>
+        </figcaption>
+        <p className="key"><i style={{ background: 'var(--line-strong)' }} />Today <i style={{ background: 'var(--ok)' }} />{PLAN_TEXT[planType][0]}</p>
+      </figure>
     )
   }
 
-  // Demand Forecast Timeline SVG
+  // Daily calls: actual vs LightGBM vs the 4-week average
   const renderForecastChart = () => {
     const tl = forecastData?.[region]?.timeline || []
-    if (!tl.length) return <p style={{ color: '#94a3b8' }}>Loading forecast telemetry...</p>
+    if (!tl.length) return <p className="muted">No forecast data yet.</p>
     const maxVal = Math.max(...tl.map((d: any) => Math.max(d.actual, d.forecast, d.baseline)), 1)
-
+    const pts = (k: string) => tl.map((d: any, i: number) => `${(i / (tl.length - 1)) * 600},${150 - (d[k] / maxVal) * 135}`).join(' ')
     return (
-      <svg width="100%" height="160" style={{ background: '#090d16', borderRadius: '6px', padding: '10px' }}>
-        {tl.map((d: any, i: number) => {
-          if (i === 0) return null
-          const prev = tl[i - 1]
-          const x1 = ((i - 1) / (tl.length - 1)) * 100 + '%'
-          const x2 = (i / (tl.length - 1)) * 100 + '%'
-          const y1Act = 140 - (prev.actual / maxVal) * 120
-          const y2Act = 140 - (d.actual / maxVal) * 120
-          const y1Fc = 140 - (prev.forecast / maxVal) * 120
-          const y2Fc = 140 - (d.forecast / maxVal) * 120
-          const y1Base = 140 - (prev.baseline / maxVal) * 120
-          const y2Base = 140 - (d.baseline / maxVal) * 120
-
-          return (
-            <g key={i}>
-              <line x1={x1} y1={y1Base} x2={x2} y2={y2Base} stroke="#64748b" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1={x1} y1={y1Act} x2={x2} y2={y2Act} stroke="#3b82f6" strokeWidth="1.5" />
-              <line x1={x1} y1={y1Fc} x2={x2} y2={y2Fc} stroke="#10b981" strokeWidth="2" />
-            </g>
-          )
-        })}
-      </svg>
+      <figure className="chart">
+        <svg viewBox="0 0 600 160" preserveAspectRatio="none" role="img" aria-label="Daily calls: actual, forecast and 4-week average">
+          <polyline points={pts('baseline')} fill="none" stroke="var(--line-strong)" strokeWidth="1.5" strokeDasharray="4 3" />
+          <polyline points={pts('actual')} fill="none" stroke="var(--ink)" strokeWidth="1.5" />
+          <polyline points={pts('forecast')} fill="none" stroke="var(--action)" strokeWidth="2.5" />
+        </svg>
+        <p className="key"><i style={{ background: 'var(--ink)' }} />Actual calls <i style={{ background: 'var(--action)' }} />LightGBM forecast <i style={{ background: 'var(--line-strong)' }} />4-week average</p>
+      </figure>
     )
   }
 
-  return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', backgroundColor: '#090d16' }}>
-      {/* 1. Left Sidebar: Operator Command Center */}
-      <div
-        style={{
-          width: '430px',
-          minWidth: '400px',
-          height: '100%',
-          backgroundColor: '#0c1322',
-          borderRight: '1px solid #1e293b',
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          overflowY: 'auto',
-          padding: '18px 20px',
-          boxShadow: '4px 0 24px rgba(0,0,0,0.6)',
-        }}
-      >
-        {/* Header */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ backgroundColor: '#ef4444', padding: '6px', borderRadius: '8px', display: 'flex' }}>
-              <Activity color="#ffffff" size={22} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.5px', color: '#f8fafc', lineHeight: 1.1 }}>
-                GoldenHour
-              </h1>
-              <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>
-                PES University Zero Hour • Track 3: Optimisation
-              </div>
-            </div>
-            <span
-              style={{
-                marginLeft: 'auto',
-                fontSize: '11px',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                backgroundColor: '#1e293b',
-                color: '#10b981',
-                fontWeight: 700,
-                border: '1px solid #334155',
-              }}
-            >
-              MODELLED DATA
-            </span>
-          </div>
-          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', lineHeight: 1.4 }}>
-            Karnataka 108 Emergency Ambulance Fleet Allocation & Multi-Period Response Planner
-          </p>
+  const showDispatch = (d: Dispatch | null) => {
+    setActiveDispatch(d)
+    if (!d) return
+    if (d.region !== region) setRegion(d.region as 'blr' | 'tmk')
+    // fit the whole response (units, patient, hospital) into the part of the map not covered by panels
+    const pts = [...d.ambulance.path, ...(d.bike?.path ?? []), ...d.hospital.path]
+    const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1])
+    const width = Math.max(400, window.innerWidth - 400), height = window.innerHeight - 56
+    const wide = width > 900
+    const fit = new WebMercatorViewport({ width, height }).fitBounds(
+      [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: { top: 90, bottom: 90, left: 60, right: wide ? 470 : 60 }, maxZoom: 15 },
+    )
+    setViewState((v: any) => ({ ...v, longitude: fit.longitude, latitude: fit.latitude, zoom: fit.zoom, pitch: 0, bearing: 0,
+      transitionDuration: 1500, transitionInterpolator: new FlyToInterpolator() }))
+  }
+
+  // The assistant orb and panel sit left of the docked panel
+  useEffect(() => {
+    document.documentElement.style.setProperty('--dock-w', view === 'evidence' ? '0px' : '400px')
+  }, [view])
+
+  const tip = (html: string) => ({
+    html: `<div style="font: 13px/1.45 var(--font-sans); padding: 8px 10px; max-width: 260px;">${html}</div>`,
+    style: { background: '#FFFFFF', color: '#17202B', borderRadius: '8px', border: '1px solid #DCE1E7', boxShadow: '0 4px 14px rgba(23,32,43,.12)' },
+  })
+  const getTooltip = ({ object }: any) => {
+    if (!object) return null
+    if (object.h3) {
+      const lam = object.lam?.[blockId] || 0
+      return tip(`<b>${object.zone}</b><br/>${object.pop.toLocaleString()} people<br/>${lam.toFixed(2)} calls per hour now`)
+    }
+    if (object.site_id) {
+      return tip(`<b>${object.name}</b><br/>Advanced ${object.a}, Basic ${object.b}, bikes ${object.y}`)
+    }
+    if (object.from_name) {
+      return tip(`<b>Planned move</b><br/>${object.from_name} → ${object.to_name}<br/>${object.travel_min} min drive`)
+    }
+    return null
+  }
+
+  // Live calls: quieter map (coverage faint, no plan moves) so incoming calls and routes stand out
+  const shownLayers = (() => {
+    const quiet = view === 'live' || activeDispatch
+    if (!quiet) return layers
+    return [
+      ...layers
+        .filter((l: any) => !['admin-zones', 'crew-moves-arcs', 'move-arrival-rings'].includes(l.id))
+        .map((l: any) => (l.id === 'h3-hexagons' ? l.clone({ opacity: activeDispatch ? 0.12 : 0.22 }) : l)),
+      ...dispatchLayers(activeDispatch),
+    ]
+  })()
+
+  const legend = () => {
+    if (activeDispatch)
+      return (
+        <div className="legend">
+          <span><i className="ln" style={{ background: 'var(--critical)' }} />Ambulance</span>
+          {activeDispatch.bike && <span><i className="ln" style={{ background: 'var(--bike)' }} />Bike</span>}
+          <span><i className="ln" style={{ background: 'var(--ok)' }} />To hospital</span>
+          <button className="btn small" onClick={() => setActiveDispatch(null)}>Clear route</button>
         </div>
-
-        {/* Region Switcher Tabs */}
-        <div style={{ display: 'flex', backgroundColor: '#131d31', borderRadius: '8px', padding: '3px', marginBottom: '14px', border: '1px solid #1e293b' }}>
-          <button
-            onClick={() => setRegion('blr')}
-            style={{
-              flex: 1,
-              padding: '8px 10px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: region === 'blr' ? '#2563eb' : 'transparent',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '12.5px',
-              transition: 'background 0.2s',
-            }}
-          >
-            Greater Bengaluru (Urban)
-          </button>
-          <button
-            onClick={() => setRegion('tmk')}
-            style={{
-              flex: 1,
-              padding: '8px 10px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: region === 'tmk' ? '#2563eb' : 'transparent',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '12.5px',
-              transition: 'background 0.2s',
-            }}
-          >
-            Tumakuru District (Rural)
-          </button>
-        </div>
-
-        {/* Strategy Selector */}
-        <div style={{ marginBottom: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, letterSpacing: '0.6px' }}>
-              Strategic Deployment Model
-            </label>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
-            <button
-              onClick={() => setPlanType('baseline')}
-              style={{
-                textAlign: 'left',
-                padding: '9px 12px',
-                borderRadius: '8px',
-                border: planType === 'baseline' ? '1.5px solid #3b82f6' : '1px solid #1e293b',
-                backgroundColor: planType === 'baseline' ? '#172554' : '#111827',
-                color: '#f8fafc',
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: '12.5px', color: planType === 'baseline' ? '#60a5fa' : '#f8fafc' }}>
-                1. Today: Hospital Proportional (CAG Baseline)
-              </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Ambulances wait at hospitals, shared out by population, the same all day. No bikes. This is how the 2020 CAG audit found them.
-              </div>
-            </button>
-
-            <button
-              onClick={() => setPlanType('static')}
-              style={{
-                textAlign: 'left',
-                padding: '9px 12px',
-                borderRadius: '8px',
-                border: planType === 'static' ? '1.5px solid #3b82f6' : '1px solid #1e293b',
-                backgroundColor: planType === 'static' ? '#172554' : '#111827',
-                color: '#f8fafc',
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: '12.5px', color: planType === 'static' ? '#60a5fa' : '#f8fafc' }}>
-                2. Best Fixed Spots (Static Optimization)
-              </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Single fixed 24-hour placement across all POIs, calibrated to peak traffic. No shift moves.
-              </div>
-            </button>
-
-            <button
-              onClick={() => setPlanType('goldenhour')}
-              style={{
-                textAlign: 'left',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                border: planType === 'goldenhour' ? '1.5px solid #10b981' : '1px solid #1e293b',
-                backgroundColor: planType === 'goldenhour' ? 'rgba(6, 78, 59, 0.35)' : '#111827',
-                color: '#f8fafc',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 800, fontSize: '13px', color: planType === 'goldenhour' ? '#34d399' : '#f8fafc' }}>
-                  3. GoldenHour Dynamic Plan (Rolling MILP)
-                </span>
-                <span style={{ fontSize: '10px', backgroundColor: '#059669', color: '#ffffff', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                  RECOMMENDED
-                </span>
-              </div>
-              <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '3px' }}>
-                Standby spots change every 4 hours with demand and traffic, bikes give first help, and at most a quarter of ambulances move between blocks. Planned with the HiGHS solver.
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Active Fleet & Cabinet Target Badge */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '9px 12px',
-            backgroundColor: '#131d31',
-            borderRadius: '8px',
-            fontSize: '12px',
-            marginBottom: '14px',
-            border: '1px solid #1e293b',
-          }}
-        >
-          <div>
-            <span style={{ color: '#94a3b8' }}>Fleet on Road: </span>
-            <span style={{ fontWeight: 700, color: '#f8fafc' }}>
-              {currScenario?.fleet?.ambulances ?? 0} Ambulances
-            </span>
-            {(currScenario?.fleet?.bikes ?? 0) > 0 && (
-              <span style={{ color: '#f97316', fontWeight: 800 }}> + {currScenario.fleet.bikes} Bikes</span>
-            )}
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>About 74% of the fleet is on the road at any time.</div>
-          </div>
-          <div style={{ borderLeft: '1px solid #334155', paddingLeft: '10px' }}>
-            <span style={{ color: '#94a3b8' }}>Mandate: </span>
-            <span style={{ fontWeight: 800, color: '#ef4444' }}>{targetMin} min</span>
-          </div>
-        </div>
-
-        {/* Operator Shift Stepper & Auto-Play Controls */}
-        <div style={{ backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', marginBottom: '14px', border: '1px solid #1e293b' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>
-                Shift Horizon
-              </span>
-              <span style={{ fontSize: '11px', color: blockId === 4 ? '#ef4444' : '#38bdf8', fontWeight: 700 }}>
-                {blockId === 4 ? '• PEAK RUSH (2.6× Traffic)' : `• Shift ${blockId}`}
-              </span>
-            </div>
-
-            {/* Stepper buttons */}
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button
-                onClick={() => setBlockId((prev) => (prev === 0 ? 5 : prev - 1))}
-                style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', color: '#f8fafc' }}
-                title="Previous Shift"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                style={{
-                  backgroundColor: isPlaying ? '#ef4444' : '#2563eb',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '3px 8px',
-                  color: '#ffffff',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                {isPlaying ? <Pause size={12} /> : <Play size={12} />}
-                {isPlaying ? 'Pause' : 'Play 24h'}
-              </button>
-              <button
-                onClick={() => setBlockId((prev) => (prev + 1) % 6)}
-                style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', color: '#f8fafc' }}
-                title="Next Shift"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
-            {BLOCK_NAMES[blockId]}
-          </div>
-
-          <input
-            type="range"
-            min={0}
-            max={5}
-            step={1}
-            value={blockId}
-            onChange={(e) => setBlockId(Number(e.target.value))}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '4px' }}>
-            <span>00:00 (Night)</span>
-            <span>08:00 (Morning)</span>
-            <span style={{ color: '#ef4444', fontWeight: 800 }}>16:00 (Peak Rush)</span>
-            <span>24:00</span>
-          </div>
-        </div>
-
-        {/* 4 Emergency Response KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
-          {/* KPI 1 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Reached ≤ {targetMin}m Target</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f8fafc' }}>
-              {currSim ? currSim.within_target_pct + '%' : '--'}
-            </div>
-            <div style={{ fontSize: '11px', color: deltaTarget >= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaTarget >= 0 ? `+${deltaTarget.toFixed(1)}` : `${deltaTarget.toFixed(1)}`} pts vs Today
-            </div>
-          </div>
-
-          {/* KPI 2 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Median Response Time</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f8fafc' }}>
-              {currSim ? `${currSim.median_min}m` : '--'}
-            </div>
-            <div style={{ fontSize: '11px', color: deltaMedian <= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaMedian <= 0 ? `${deltaMedian.toFixed(1)} min` : `+${deltaMedian.toFixed(1)} min`} vs Today
-            </div>
-          </div>
-
-          {/* KPI 3 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>90th-Percentile Wait</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f8fafc' }}>
-              {currSim ? `${currSim.p90_min}m` : '--'}
-            </div>
-            <div style={{ fontSize: '11px', color: deltaP90 <= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaP90 <= 0 ? `${deltaP90.toFixed(1)} min` : `+${deltaP90.toFixed(1)} min`} vs Today
-            </div>
-          </div>
-
-          {/* KPI 4 */}
-          <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>First Help ≤ 10m</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: '2px', color: '#f97316' }}>
-              {currSim ? `${currSim.first_help_10m_pct}%` : '--'}
-            </div>
-            <div style={{ fontSize: '11px', color: deltaBike >= 0 ? '#10b981' : '#ef4444', fontWeight: 700, marginTop: '2px' }}>
-              {deltaBike >= 0 ? `+${deltaBike.toFixed(1)}` : `${deltaBike.toFixed(1)}`} pts vs Today
-            </div>
-          </div>
-        </div>
-
-        {/* Selected Station / Selected Move Inspector Panel */}
-        {selectedStation && (
-          <div style={{ backgroundColor: '#1e293b', padding: '12px', borderRadius: '8px', marginBottom: '14px', border: '1.5px solid #3b82f6', position: 'relative' }}>
-            <button
-              onClick={() => setSelectedStation(null)}
-              style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#94a3b8' }}
-            >
-              <X size={16} />
-            </button>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#38bdf8', fontWeight: 800 }}>
-              Standby Station Inspector
-            </div>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', marginTop: '2px' }}>
-              {selectedStation.name}
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
-              Facility Type: {selectedStation.site_type || 'hospital'}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-              <span style={{ fontSize: '11px', backgroundColor: '#dc2626', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                ALS: {selectedStation.a || 0}
-              </span>
-              <span style={{ fontSize: '11px', backgroundColor: '#2563eb', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                BLS: {selectedStation.b || 0}
-              </span>
-              <span style={{ fontSize: '11px', backgroundColor: '#ea580c', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                Bikes: {selectedStation.y || 0}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {selectedMove && (
-          <div style={{ backgroundColor: '#1e293b', padding: '12px', borderRadius: '8px', marginBottom: '14px', border: '1.5px solid #ef4444', position: 'relative' }}>
-            <button
-              onClick={() => setSelectedMove(null)}
-              style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#94a3b8' }}
-            >
-              <X size={16} />
-            </button>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#ef4444', fontWeight: 800 }}>
-              Active Relocation Transit Docket
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginTop: '4px' }}>
-              🟢 From: {selectedMove.from_name}
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
-              🔴 To: {selectedMove.to_name}
-            </div>
-            <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 700, marginTop: '4px' }}>
-              Estimated drive: {selectedMove.travel_min} minutes
-            </div>
-          </div>
-        )}
-
-        {/* Current Block Status Note */}
-        <div style={{ backgroundColor: '#131d31', padding: '10px 12px', borderRadius: '8px', fontSize: '12px', color: '#cbd5e1', marginBottom: '10px', border: '1px solid #1e293b' }}>
-          {currSim?.per_block?.[blockId] && baseSim?.per_block?.[blockId] && (
-            <div style={{ marginBottom: '4px' }}>
-              In this block, <strong style={{ color: '#f8fafc' }}>{currSim.per_block[blockId].within_target_pct}%</strong> of calls are reached within {targetMin} minutes
-              (today: {baseSim.per_block[blockId].within_target_pct}%).
-            </div>
-          )}
-          About <strong style={{ color: '#38bdf8' }}>{Math.round((currBlockPlan?.q ?? 0) * 100)}%</strong> of ambulances are busy on a call at any moment.
-          {planType === 'goldenhour' && blockMoves.length > 0 && (
-            <div style={{ marginTop: '5px', color: '#f59e0b', fontWeight: 700 }}>
-              ➔ {blockMoves.length} ambulance relocations scheduled across sites for shift rebalancing.
-            </div>
-          )}
-        </div>
-
-        {/* Histogram SVG */}
-        {renderHistogram()}
-
-        {/* Bottom Drawer Nav Toggle Pills */}
-        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #1e293b' }}>
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, marginBottom: '6px' }}>
-            Operator Telemetry & Analysis Drawers
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-            <button
-              onClick={() => setBottomTab(bottomTab === 'wards' ? 'none' : 'wards')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'wards' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              Wards / Taluks
-            </button>
-            <button
-              onClick={() => setBottomTab(bottomTab === 'stress' ? 'none' : 'stress')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'stress' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              Stress Tests
-            </button>
-            <button
-              onClick={() => setBottomTab(bottomTab === 'fleet' ? 'none' : 'fleet')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'fleet' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              How Many Vehicles?
-            </button>
-            <button
-              onClick={() => setBottomTab(bottomTab === 'forecast' ? 'none' : 'forecast')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'forecast' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              Demand Forecast
-            </button>
-            <button
-              onClick={() => setBottomTab(bottomTab === 'sources' ? 'none' : 'sources')}
-              style={{
-                fontSize: '11px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: '1px solid #334155',
-                backgroundColor: bottomTab === 'sources' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 600,
-              }}
-            >
-              Verified Sources
-            </button>
-          </div>
-        </div>
+      )
+    const scale: Record<string, [string, string][]> = {
+      cover: [['var(--ok)', 'Likely in time'], ['var(--risk)', 'At risk'], ['var(--critical)', 'Likely late']],
+      nearest: [['var(--ok)', `Under ${Math.round(targetMin * 0.55)} min`], ['var(--risk)', `Up to ${targetMin} min`], ['var(--critical)', 'Over target']],
+      demand: [['var(--critical)', 'Busiest'], ['var(--risk)', 'Busy'], ['var(--action)', 'Moderate']],
+      reach: [['var(--ok)', 'Target reachable'], ['var(--critical)', 'Not reachable']],
+    }
+    return (
+      <div className="legend">
+        {view === 'plan' && scale[layerMode].map(([c, t]) => <span key={t}><i style={{ background: c }} />{t}</span>)}
+        <span><img src={`${import.meta.env.BASE_URL}icons/icon-als.svg`} alt="" />Advanced</span>
+        <span><img src={`${import.meta.env.BASE_URL}icons/icon-bls.svg`} alt="" />Basic</span>
+        {region === 'blr' && <span><img src={`${import.meta.env.BASE_URL}icons/icon-bike.svg`} alt="" />Bike</span>}
       </div>
+    )
+  }
 
-      {/* 2. Map Canvas & Operator Overlays */}
-      <div style={{ flex: 1, position: 'relative', height: '100%' }}>
-        {/* Top-Left Search Bar (Operator Dispatch Tool) */}
-        <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 15, width: '320px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: 'rgba(15, 23, 42, 0.94)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid #334155',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-            }}
-          >
-            <Search size={16} color="#94a3b8" style={{ marginRight: '8px' }} />
-            <input
-              type="text"
-              placeholder="Search Ward (e.g. Indiranagar) or Hospital..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                setShowSearchResults(true)
-              }}
-              onFocus={() => setShowSearchResults(true)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#f8fafc',
-                fontSize: '13px',
-                width: '100%',
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => {
-                  setSearchQuery('')
-                  setShowSearchResults(false)
-                }}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-              >
-                <X size={14} />
-              </button>
-            )}
+  const delta = (v: number, unit: 'pts' | 'min', lowerBetter = false) => {
+    if (!baseSim || planType === 'baseline') return null
+    const good = lowerBetter ? v < 0 : v > 0
+    const s = `${v > 0 ? '+' : ''}${v.toFixed(1)} ${unit}`
+    return <span className={Math.abs(v) < 0.05 ? 'flat' : good ? 'up' : 'down'}>{s} vs today</span>
+  }
+
+  const planPanel = (
+    <aside className="dock" aria-label="Fleet plan">
+      {(selectedStation || selectedMove) && (
+        <section className="sec sel">
+          <button className="x" aria-label="Close" onClick={() => { setSelectedStation(null); setSelectedMove(null) }}><X size={16} /></button>
+          {selectedStation && (
+            <>
+              <h3>{selectedStation.name}</h3>
+              <p className="muted">{selectedStation.site_type || 'hospital'}</p>
+              <p>Advanced {selectedStation.a || 0}, Basic {selectedStation.b || 0}, bikes {selectedStation.y || 0} wait here in this block.</p>
+            </>
+          )}
+          {selectedMove && (
+            <>
+              <h3>Planned move</h3>
+              <p>{selectedMove.from_name} → {selectedMove.to_name}</p>
+              <p className="muted">{selectedMove.travel_min} min drive</p>
+            </>
+          )}
+        </section>
+      )}
+      <section className="sec">
+        <h2>Plan</h2>
+        <div className="choices" role="radiogroup" aria-label="Plan">
+          {(['baseline', 'static', 'goldenhour'] as const).map((p) => (
+            <button key={p} role="radio" aria-checked={planType === p} className={planType === p ? 'on' : ''} onClick={() => setPlanType(p)}>
+              <b>{PLAN_TEXT[p][0]}</b>
+              <span>{PLAN_TEXT[p][1]}</span>
+            </button>
+          ))}
+        </div>
+        <p className="muted small">
+          {currScenario?.fleet?.ambulances ?? 0} ambulances{(currScenario?.fleet?.bikes ?? 0) > 0 ? ` and ${currScenario.fleet.bikes} bikes` : ''} on the road
+          (about 74% of the fleet). Target: {targetMin} minutes from call to arrival.
+        </p>
+      </section>
+
+      <section className="sec">
+        <div className="row between">
+          <h2>{BLOCK_HOURS[blockId]}</h2>
+          <div className="row gap4">
+            <button className="btn icon" aria-label="Previous block" onClick={() => setBlockId((p) => (p === 0 ? 5 : p - 1))}><ChevronLeft size={16} /></button>
+            <button className="btn" onClick={() => setIsPlaying(!isPlaying)}>
+              {isPlaying ? <Pause size={14} /> : <Play size={14} />} {isPlaying ? 'Pause' : 'Play the day'}
+            </button>
+            <button className="btn icon" aria-label="Next block" onClick={() => setBlockId((p) => (p + 1) % 6)}><ChevronRight size={16} /></button>
           </div>
+        </div>
+        <input type="range" min={0} max={5} step={1} value={blockId} onChange={(e) => setBlockId(Number(e.target.value))} aria-label="Time of day" />
+        <div className="ticks">{['12 am', '4 am', '8 am', '12 pm', '4 pm', '8 pm'].map((t) => <span key={t}>{t}</span>)}</div>
+        <p className="small">
+          {currSim?.per_block?.[blockId] && baseSim?.per_block?.[blockId] && (
+            <>{currSim.per_block[blockId].within_target_pct}% of calls in this block are reached in time (today: {baseSim.per_block[blockId].within_target_pct}%). </>
+          )}
+          About {Math.round((currBlockPlan?.q ?? 0) * 100)}% of ambulances are busy at any moment.
+          {planType === 'goldenhour' && blockMoves.length > 0 && <> {blockMoves.length} ambulances move to new spots at the start of this block.</>}
+        </p>
+      </section>
 
-          {/* Search Dropdown */}
-          {showSearchResults && searchResults.length > 0 && (
-            <div
-              style={{
-                marginTop: '6px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-                maxHeight: '260px',
-                overflowY: 'auto',
-              }}
-            >
-              {searchResults.map((r, i) => (
-                <div
-                  key={i}
-                  onClick={() => handleSelectSearch(r)}
-                  style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #1e293b',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1e293b')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <span style={{ fontSize: '13px', color: '#f8fafc', fontWeight: 600 }}>{r.name}</span>
-                  <span style={{ fontSize: '10px', color: '#38bdf8', backgroundColor: '#1e293b', padding: '2px 6px', borderRadius: '4px' }}>
-                    {r.type}
-                  </span>
+      <section className="sec">
+        <h2>Over 4 simulated weeks</h2>
+        <dl className="stats">
+          <div><dt>Reached within {targetMin} min</dt><dd>{currSim ? `${currSim.within_target_pct}%` : '–'}</dd>{delta(deltaTarget, 'pts')}</div>
+          <div><dt>Typical wait</dt><dd>{currSim ? `${currSim.median_min} min` : '–'}</dd>{delta(deltaMedian, 'min', true)}</div>
+          <div><dt>Slowest 1 in 10 wait over</dt><dd>{currSim ? `${currSim.p90_min} min` : '–'}</dd>{delta(deltaP90, 'min', true)}</div>
+          <div><dt>First help within 10 min</dt><dd>{currSim ? `${currSim.first_help_10m_pct}%` : '–'}</dd>{delta(deltaBike, 'pts')}</div>
+        </dl>
+        {renderHistogram()}
+      </section>
+    </aside>
+  )
+
+  const evidence = () => {
+    const fc = (scenarios?.fleet_curve ?? []) as any[]
+    const today = fc.find((x) => x.multiplier === 1) ?? fc[0]
+    const best = fc[fc.length - 1]
+    const hit = fc.find((x) => x.within_target_pct >= 90)
+    const zone = region === 'blr' ? 'ward' : 'taluk'
+    const fcd = forecastData?.[region]
+    const sections: [string, string][] = [
+      ['fleet', 'How many ambulances are needed'],
+      ['stress', 'When things get harder'],
+      ['wards', `Slowest ${zone}s`],
+      ['forecast', 'Demand forecast'],
+      ['hospital', 'Right hospital, not nearest'],
+      ['sources', 'Sources'],
+    ]
+    return (
+      <div className="evidence">
+        <nav className="toc" aria-label="On this page">
+          {sections.map(([id, t]) => <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: 'smooth' }) }}>{t}</a>)}
+        </nav>
+        <article className="doc">
+          <p className="lede">
+            {region === 'blr' ? 'Bengaluru' : 'Tumakuru district'}. Every number below comes from replaying 4 weeks of modelled 108 calls on real roads,
+            population and hospitals. Calls are generated, because real call logs are not public.
+          </p>
+
+          <section id="ev-fleet">
+            <h2>How many ambulances are needed</h2>
+            {today && best && (
+              <p>
+                With today's {today.ambulances} ambulances ({today.on_road} on the road), {today.within_target_pct}% of calls are reached within {targetMin} minutes.
+                With {best.ambulances}, it is {best.within_target_pct}%.{' '}
+                {hit ? `About ${hit.ambulances} ambulances are needed to reach 90% of calls in time.` : `Even ${best.ambulances} ambulances do not reach 90% in time, so this target needs more than extra vehicles.`}
+              </p>
+            )}
+            <div className="bars">
+              {fc.map((x: any) => (
+                <div key={x.multiplier} className={`bar-row ${x.multiplier === 1 ? 'now' : ''}`}>
+                  <span className="lbl">{x.ambulances} ambulances{x.multiplier === 1 ? ' (today)' : ''}</span>
+                  <span className="track"><span style={{ width: `${x.within_target_pct}%` }} /></span>
+                  <span className="val">{x.within_target_pct}%</span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </section>
 
-        {/* Top-Right Control Palette: Layer Switcher & Visibility Toggles */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            zIndex: 15,
-            backgroundColor: 'rgba(15, 23, 42, 0.94)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid #334155',
-            borderRadius: '8px',
-            padding: '12px 16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-            maxWidth: '380px',
-          }}
-        >
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px' }}>
-            Map Layer Metric
-          </div>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-            <button
-              onClick={() => setLayerMode('cover')}
-              style={{
-                fontSize: '12px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: 'none',
-                backgroundColor: layerMode === 'cover' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
-              }}
-            >
-              Chance In-Time
-            </button>
-            <button
-              onClick={() => setLayerMode('nearest')}
-              style={{
-                fontSize: '12px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: 'none',
-                backgroundColor: layerMode === 'nearest' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
-              }}
-            >
-              Minutes to Standby
-            </button>
-            <button
-              onClick={() => setLayerMode('demand')}
-              style={{
-                fontSize: '12px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: 'none',
-                backgroundColor: layerMode === 'demand' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
-              }}
-            >
-              Demand Heatmap
-            </button>
-            <button
-              onClick={() => setLayerMode('reach')}
-              style={{
-                fontSize: '12px',
-                padding: '5px 9px',
-                borderRadius: '5px',
-                border: 'none',
-                backgroundColor: layerMode === 'reach' ? '#2563eb' : '#1e293b',
-                color: '#ffffff',
-                fontWeight: 700,
-              }}
-            >
-              Peak Reachable
-            </button>
-          </div>
+          <section id="ev-stress">
+            <h2>When things get harder</h2>
+            <p>The same plans under harder conditions. When fewer vehicles are on the road, both plans are re-made with what is left.</p>
+            <table>
+              <thead><tr><th>Condition</th><th>Today, in time</th><th>GoldenHour, in time</th><th>Slowest 1 in 10, today</th><th>GoldenHour</th></tr></thead>
+              <tbody>
+                {(scenarios?.stress_tests ?? []).map((st: any) => (
+                  <tr key={st.name}>
+                    <td><b>{STRESS_LABEL[st.name] ?? st.name}</b><br /><span className="muted small">{st.description}</span></td>
+                    <td>{st.baseline_within_pct}%</td>
+                    <td className={st.goldenhour_within_pct >= st.baseline_within_pct ? 'up' : 'down'}>{st.goldenhour_within_pct}%</td>
+                    <td>{st.baseline_p90} min</td>
+                    <td className={st.goldenhour_p90 <= st.baseline_p90 ? 'up' : 'down'}>{st.goldenhour_p90} min</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
 
-          {/* Visibility Toggles */}
-          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #1e293b', paddingTop: '8px', fontSize: '11px', color: '#cbd5e1' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showHexagons} onChange={(e) => setShowHexagons(e.target.checked)} />
-              Hexagons
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showVehicles} onChange={(e) => setShowVehicles(e.target.checked)} />
-              Vehicles
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showArcs} onChange={(e) => setShowArcs(e.target.checked)} />
-              Relocation Arcs
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showWards} onChange={(e) => setShowWards(e.target.checked)} />
-              Wards
-            </label>
-          </div>
+          <section id="ev-wards">
+            <h2>Slowest {zone}s</h2>
+            <p>The {zone}s where help arrives late most often with the {PLAN_TEXT[planType][0]} plan. These are where a fixed target hurts most and where extra vehicles help most.</p>
+            <table>
+              <thead><tr><th>{zone[0].toUpperCase() + zone.slice(1)}</th><th>Calls in 4 weeks</th><th>In time, this plan</th><th>In time, today</th><th>Typical wait</th><th>Slowest 1 in 10</th></tr></thead>
+              <tbody>
+                {Object.entries(currSim?.per_zone ?? {})
+                  .sort((a: any, b: any) => a[1].within_target_pct - b[1].within_target_pct)
+                  .slice(0, 15)
+                  .map(([z, st]: any) => (
+                    <tr key={z}>
+                      <td><b>{z}</b></td>
+                      <td>{st.calls}</td>
+                      <td className={st.within_target_pct >= (baseSim?.per_zone?.[z]?.within_target_pct ?? 0) ? 'up' : 'down'}>{st.within_target_pct}%</td>
+                      <td>{baseSim?.per_zone?.[z]?.within_target_pct ?? '–'}%</td>
+                      <td>{st.median_min} min</td>
+                      <td>{st.p90_min} min</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </section>
 
-          {/* Operator Legend & Symbols */}
-          <div style={{ borderTop: '1px solid #334155', marginTop: '10px', paddingTop: '10px' }}>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', letterSpacing: '0.05em' }}>
-              Fleet Symbols
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: '#f8fafc', fontWeight: 600 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/icon-als.svg" width="20" height="20" alt="ALS" />
-                <span style={{ color: '#fca5a5' }}>Advanced (ALS) Ambulance</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/icon-bls.svg" width="20" height="20" alt="BLS" />
-                <span style={{ color: '#93c5fd' }}>BLS Ambulance (Basic)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src="/icons/icon-bike.svg" width="20" height="20" alt="Bike" />
-                <span style={{ color: '#fdba74' }}>Bike Paramedic</span>
-              </div>
-            </div>
+          <section id="ev-forecast">
+            <h2>Demand forecast</h2>
+            <p>
+              A LightGBM model predicts calls for each {zone} and 4-hour block. On the 8 weeks it never saw, its average error is {fcd?.mae_lgb ?? '–'} calls,
+              against {fcd?.mae_baseline ?? '–'} for the "same block, last 4 weeks" rule a control room might use ({fcd?.mae_improvement_pct ?? '–'}% better).
+              Calls are modelled, so this shows the method works, not real-world accuracy.
+            </p>
+            {renderForecastChart()}
+          </section>
 
-            {/* Relocation Legend */}
-            {blockMoves.length > 0 && planType === 'goldenhour' && showArcs && (
-              <div style={{ marginTop: '8px', fontSize: '11px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(15,23,42,0.6)', padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155' }}>
-                <span style={{ fontWeight: 800, color: '#f59e0b' }}>Shift Relocation:</span>
-                <span style={{ color: '#34d399', fontWeight: 700 }}>🟢 Origin (Start)</span>
-                <span style={{ color: '#94a3b8' }}>────►</span>
-                <span style={{ color: '#f87171', fontWeight: 700 }}>🎯 Target Destination Ring</span>
-              </div>
+          <section id="ev-hospital">
+            <h2>Right hospital, not nearest</h2>
+            <p>Crews pick the hospital in the crew app. This replay compares taking each patient to the nearest hospital with taking them to one that can treat them. It uses fictional demo hospitals.</p>
+            <div className="adv-root" data-theme="light"><SimResultsView /></div>
+          </section>
+
+          <section id="ev-sources">
+            <h2>Sources</h2>
+            <table>
+              <thead><tr><th>What</th><th>Source</th><th>Details</th></tr></thead>
+              <tbody>
+                {(meta?.assumptions ?? []).map((a: any, i: number) => (
+                  <tr key={i}><td><b>{a.label}</b><br /><span className="muted small">{a.symbol === '≈' ? 'Our estimate' : 'Published source'}</span></td><td>{a.source}</td><td>{a.details}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </article>
+      </div>
+    )
+  }
+
+  if (view === 'evidence') return <div className="app">{evidence()}</div>
+
+  return (
+    <div className="app">
+      <div className="map">
+        <div className="map-tools">
+          <div className="search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder={region === 'blr' ? 'Find a ward or hospital' : 'Find a taluk or hospital'}
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setShowSearchResults(true) }}
+              onFocus={() => setShowSearchResults(true)}
+              aria-label="Find a place"
+            />
+            {showSearchResults && searchResults.length > 0 && (
+              <ul className="results">
+                {searchResults.map((r: any, i: number) => (
+                  <li key={i}><button onClick={() => handleSelectSearch(r)}><b>{r.name}</b><span>{r.type === 'Hospital' ? 'Standby site' : r.type}</span></button></li>
+                ))}
+              </ul>
             )}
           </div>
+          {view === 'plan' && (
+            <div className="seg" role="group" aria-label="Map colours">
+              {(Object.keys(LAYER_TEXT) as (keyof typeof LAYER_TEXT)[]).map((k) => (
+                <button key={k} aria-pressed={layerMode === k} onClick={() => setLayerMode(k)}>{LAYER_TEXT[k]}</button>
+              ))}
+            </div>
+          )}
+          {view === 'plan' && (
+            <details className="show">
+              <summary>Show</summary>
+              <label><input type="checkbox" checked={showHexagons} onChange={(e) => setShowHexagons(e.target.checked)} /> Coverage</label>
+              <label><input type="checkbox" checked={showVehicles} onChange={(e) => setShowVehicles(e.target.checked)} /> Vehicles</label>
+              <label><input type="checkbox" checked={showArcs} onChange={(e) => setShowArcs(e.target.checked)} /> Planned moves</label>
+              <label><input type="checkbox" checked={showWards} onChange={(e) => setShowWards(e.target.checked)} /> {region === 'blr' ? 'Ward' : 'Taluk'} borders</label>
+            </details>
+          )}
         </div>
-
-        {/* DeckGL Canvas */}
         <DeckGL
           viewState={viewState}
           onViewStateChange={({ viewState: vs }: any) => setViewState(vs)}
           controller={true}
-          layers={layers}
-          getTooltip={({ object }: any) => {
-            if (!object) return null
-            if (object.h3) {
-              const lam = object.lam?.[blockId] || 0
-              return {
-                html: `
-                  <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 6px;">
-                    <div style="font-weight: 800; color: #38bdf8; font-size: 13px;">${object.zone}</div>
-                    <div><strong>Population:</strong> ${object.pop.toLocaleString()}</div>
-                    <div><strong>Expected Emergency Calls:</strong> ${(lam).toFixed(2)} / hour</div>
-                    <div><strong>Major Road Length:</strong> ${object.major_km} km</div>
-                  </div>
-                `,
-                style: { backgroundColor: '#0f172a', color: '#ffffff', borderRadius: '8px', border: '1px solid #334155' },
-              }
-            }
-            if (object.site_id) {
-              return {
-                html: `
-                  <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 6px;">
-                    <div style="font-weight: 800; color: #f8fafc; font-size: 13px;">${object.name}</div>
-                    <div style="color: #94a3b8; font-size: 11px;">Type: ${object.site_type}</div>
-                    <div style="margin-top: 4px; font-weight: 700;">
-                      <span style="color: #ef4444;">ALS: ${object.a}</span> | 
-                      <span style="color: #3b82f6;">BLS: ${object.b}</span> | 
-                      <span style="color: #f97316;">Bikes: ${object.y}</span>
-                    </div>
-                  </div>
-                `,
-                style: { backgroundColor: '#0f172a', color: '#ffffff', borderRadius: '8px', border: '1px solid #334155' },
-              }
-            }
-            if (object.from_name) {
-              return {
-                html: `
-                  <div style="font-family: sans-serif; font-size: 12px; padding: 6px; line-height: 1.4;">
-                    <div style="font-weight: 800; color: #f59e0b;">Planned Ambulance Relocation</div>
-                    <div><strong>🟢 From:</strong> ${object.from_name}</div>
-                    <div><strong>🔴 To:</strong> ${object.to_name}</div>
-                    <div style="color: #38bdf8; font-weight: 700; margin-top: 2px;">Transit Time: ${object.travel_min} min</div>
-                  </div>
-                `,
-                style: { backgroundColor: '#0f172a', color: '#ffffff', borderRadius: '8px', border: '1px solid #334155' },
-              }
-            }
-            return null
-          }}
+          layers={shownLayers}
+          getTooltip={getTooltip}
         >
           <Map mapStyle={MAP_STYLE} />
         </DeckGL>
-
-        {/* 3. Bottom Drawer Telemetry / Analysis Modal */}
-        {bottomTab !== 'none' && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '350px',
-              backgroundColor: '#0c1322',
-              borderTop: '2px solid #2563eb',
-              boxShadow: '0 -10px 30px rgba(0,0,0,0.7)',
-              zIndex: 25,
-              display: 'flex',
-              flexDirection: 'column',
-              padding: '16px 24px',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
-                {bottomTab === 'wards' && 'Municipal Ward & Taluk Response Performance (Sorted Slowest First)'}
-                {bottomTab === 'stress' && 'Stress Testing & System Resilience Battery'}
-                {bottomTab === 'fleet' && 'Fleet Scaling Curve: How Many Vehicles Does Karnataka Need?'}
-                {bottomTab === 'forecast' && 'Demand Forecasting: LightGBM vs 4-Week Moving Average'}
-                {bottomTab === 'sources' && 'Assumptions, Data Sources & Official Citations'}
-              </h2>
-              <button
-                onClick={() => setBottomTab('none')}
-                style={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  color: '#94a3b8',
-                  padding: '4px 12px',
-                  borderRadius: '6px',
-                  fontWeight: 700,
-                  fontSize: '12px',
-                }}
-              >
-                Close ✕
-              </button>
-            </div>
-
-            {/* Tab 1: Wards */}
-            {bottomTab === 'wards' && currSim?.per_zone && (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ color: '#94a3b8', borderBottom: '1px solid #334155' }}>
-                      <th style={{ padding: '8px' }}>Zone Name</th>
-                      <th style={{ padding: '8px' }}>28-Day Calls</th>
-                      <th style={{ padding: '8px' }}>Within Target % (Plan)</th>
-                      <th style={{ padding: '8px' }}>Within Target % (Today)</th>
-                      <th style={{ padding: '8px' }}>Median Response</th>
-                      <th style={{ padding: '8px' }}>90th Percentile</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(currSim.per_zone)
-                      .sort((a: any, b: any) => a[1].within_target_pct - b[1].within_target_pct)
-                      .slice(0, 15)
-                      .map(([zName, stats]: any) => {
-                        const baseStats = baseSim?.per_zone?.[zName]
-                        return (
-                          <tr key={zName} style={{ borderBottom: '1px solid #1e293b' }}>
-                            <td style={{ padding: '8px', fontWeight: 700 }}>{zName}</td>
-                            <td style={{ padding: '8px' }}>{stats.calls}</td>
-                            <td style={{ padding: '8px', color: stats.within_target_pct >= 70 ? '#10b981' : '#f59e0b', fontWeight: 700 }}>
-                              {stats.within_target_pct}%
-                            </td>
-                            <td style={{ padding: '8px', color: '#94a3b8' }}>
-                              {baseStats?.within_target_pct ?? '--'}%
-                            </td>
-                            <td style={{ padding: '8px' }}>{stats.median_min} min</td>
-                            <td style={{ padding: '8px', color: '#ef4444', fontWeight: 700 }}>{stats.p90_min} min</td>
-                          </tr>
-                        )
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Tab 2: Stress Tests */}
-            {bottomTab === 'stress' && scenarios?.stress_tests && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                {scenarios.stress_tests.map((st: any, i: number) => (
-                  <div key={i} style={{ backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', border: '1px solid #334155' }}>
-                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#38bdf8' }}>{st.name}</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', margin: '4px 0 8px 0' }}>{st.description}</div>
-                    <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                      <span style={{ color: '#94a3b8' }}>Today in-time: </span>
-                      <strong>{st.baseline_within_pct}%</strong>
-                    </div>
-                    <div style={{ fontSize: '12px', marginTop: '2px' }}>
-                      <span style={{ color: '#94a3b8' }}>GoldenHour: </span>
-                      <strong style={{ color: '#10b981' }}>{st.goldenhour_within_pct}%</strong>
-                    </div>
-                    <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                      <span style={{ color: '#94a3b8' }}>90th Percentile: </span>
-                      <span style={{ color: '#ef4444' }}>{st.goldenhour_p90}m</span> vs {st.baseline_p90}m
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Tab 3: Fleet Curve */}
-            {bottomTab === 'fleet' && scenarios?.fleet_curve && (() => {
-              const fc = scenarios.fleet_curve as any[]
-              const today = fc.find((x) => x.multiplier === 1) ?? fc[0]
-              const best = fc[fc.length - 1]
-              const hit = fc.find((x) => x.within_target_pct >= 90)
-              return (
-                <div>
-                  <p style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '10px', lineHeight: 1.5 }}>
-                    Each column re-plans the fleet with GoldenHour and replays the same 4 weeks of calls. With today's {today.ambulances} ambulances
-                    (about {today.on_road} on the road), {today.within_target_pct}% of calls are reached within {scenarios.target_min} minutes.
-                    With {best.ambulances}, it is {best.within_target_pct}%.{' '}
-                    {hit ? `About ${hit.ambulances} ambulances are needed to reach 90% of calls in time.` : `Even ${best.ambulances} ambulances do not reach 90% of calls in time, so this target needs more than extra vehicles.`}
-                  </p>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    {fc.map((x: any, i: number) => (
-                      <div key={i} style={{ flex: 1, backgroundColor: '#131d31', padding: '12px', borderRadius: '8px', textAlign: 'center', border: x.multiplier === 1 ? '1px solid #38bdf8' : '1px solid #334155' }}>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{x.multiplier === 1 ? 'Today' : `${x.multiplier}x fleet`}</div>
-                        <div style={{ fontSize: '20px', fontWeight: 800, margin: '4px 0', color: '#38bdf8' }}>{x.ambulances} ambulances</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{x.on_road} on the road</div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#10b981', marginTop: '4px' }}>{x.within_target_pct}% in time</div>
-                        <div style={{ fontSize: '11px', color: '#cbd5e1' }}>median {x.median_min} min, slowest 1 in 10 {x.p90_min} min</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* Tab 4: Forecast */}
-            {bottomTab === 'forecast' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '8px' }}>
-                    Demand is modelled using LightGBM Poisson regression on ward history, calendar signals, and 4-week lag features.
-                  </div>
-                  <div style={{ backgroundColor: '#131d31', padding: '10px', borderRadius: '6px', fontSize: '12px' }}>
-                    <div>Baseline 4-Wk MAE: <strong>{forecastData?.[region]?.mae_baseline ?? '--'}</strong></div>
-                    <div>LightGBM MAE: <strong style={{ color: '#10b981' }}>{forecastData?.[region]?.mae_lgb ?? '--'}</strong></div>
-                    <div style={{ color: '#38bdf8', marginTop: '4px', fontWeight: 700 }}>
-                      Error Reduction: {forecastData?.[region]?.mae_improvement_pct ?? '--'}%
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-                    * Synthetic call log generated from published CAG volume aggregates.
-                  </div>
-                </div>
-                <div>{renderForecastChart()}</div>
-              </div>
-            )}
-
-            {/* Tab 6: Sources */}
-            {bottomTab === 'sources' && (
-              <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ color: '#94a3b8', borderBottom: '1px solid #334155' }}>
-                      <th style={{ padding: '6px' }}>Type</th>
-                      <th style={{ padding: '6px' }}>Source Document</th>
-                      <th style={{ padding: '6px' }}>Verified Data & Facts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {meta?.assumptions?.map((a: any, i: number) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
-                        <td style={{ padding: '6px', fontWeight: 800 }}>{a.symbol} {a.label}</td>
-                        <td style={{ padding: '6px', color: '#38bdf8' }}>{a.source}</td>
-                        <td style={{ padding: '6px' }}>{a.details}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+        {legend()}
       </div>
+      {view === 'live' ? (
+        <aside className="dock"><LiveOps region={region} onShow={showDispatch} /></aside>
+      ) : (
+        planPanel
+      )}
+      <Assistant onDispatch={showDispatch} />
     </div>
   )
 }

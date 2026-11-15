@@ -1,11 +1,13 @@
-"""GoldenHour dispatch assistant: one Gemini call per message.
+"""GoldenHour dispatch assistant: one Gemini call per message, plus one decision-model call per dispatch.
 
 Gemini only decides WHAT the user wants (dispatch to a place / a stats question / plain answer) and fills
-in the arguments. Everything else is plain, testable code, and the reply after a tool is a template, so a
-request never needs a second model call:
-  dispatch        -> offline place search (OpenStreetMap index), nearest suitable ambulance (+ bike) from the
-                     current GoldenHour plan, fastest road route at this hour's traffic, nearest hospital,
-                     DRAFT alerts. Alerts are only "sent" (logged) when the dispatcher presses Confirm.
+in the arguments. Everything else is plain, testable code, and the reply after a tool is a template:
+  dispatch        -> offline place search (OpenStreetMap index); one gemini-decision-1 request (calibrated
+                     probabilities) for call type, danger signs and, if spots are far apart, which place is meant
+                     (unsure -> ask the dispatcher); nearest suitable ambulance (+ bike) from the current
+                     GoldenHour plan, fastest road route at this hour's traffic, nearest emergency-capable
+                     hospital (decision-model judgments from pipeline/facilities.py), DRAFT alerts. Alerts are
+                     only "sent" (logged) when the dispatcher presses Confirm.
   region_summary / ward_stats -> numbers straight from the simulation results
 Token budget per call: short system prompt + 3 compact tools + the last few text turns; minimal thinking;
 output capped. Tool results are never sent back to the model.
@@ -83,22 +85,32 @@ def all_hospitals() -> pd.DataFrame:
         h["region"] = [region_of(a, b) for a, b in zip(h.lat, h.lon)]
         _H = h
     return _H
+# gemini-decision-1 judgments per OSM hospital name (pipeline/facilities.py): p_emergency, category
+FACILITY = json.loads((PROCESSED_DIR / "facility_check.json").read_text()) if (PROCESSED_DIR / "facility_check.json").exists() else {}
+DEST_MIN_P = 0.5  # ponytail: destinations need a confident "takes emergencies"; tune with labelled names
+# fallback only for names the decision model has not judged yet (run `make facilities` to fill them)
 NOT_ER = r"eye|dental|dent |fertility|ivf|piles|skin|derma|ayurved|unani|homeo|physio|diagnostic|lab|clinic|nursing home|vet|psychiat|rehab"
 MAJOR = r"medical college|general hospital|district hospital|government|govt|victoria|bowring|ramaiah|manipal|narayana|st john|nimhans|trauma"
 
 
 def destination_hospitals(r: str, call_type: str) -> pd.DataFrame:
-    """Where to take the patient: hospitals with an emergency department (OSM tag) or major/government
-    hospitals; never eye/dental/fertility-type clinics; maternity only for pregnancy calls."""
+    """Where to take the patient: hospitals the decision model judges emergency-capable (p_emergency >= 0.5)
+    or OSM-tagged emergency=yes; maternity hospitals only for pregnancy calls. Unjudged names use the old
+    keyword rule."""
     h = all_hospitals()
     h = h[h.region == r]
-    name = h.name.fillna("").str.lower()
-    bad = name.str.contains(NOT_ER, regex=True) | (name.str.contains("maternity|women", regex=True) & (call_type != "pregnancy"))
-    good = name.map(places.norm).isin(ER_NAMES) | name.str.contains(MAJOR, regex=True)
-    if call_type == "pregnancy":
-        good |= name.str.contains("maternity|women|mother|matru", regex=True)
-    pick = h[good & ~bad]
-    return pick if len(pick) else h[~bad] if (~bad).any() else h
+    name = h.name.fillna("")
+    j = name.map(lambda n: FACILITY.get(f"{r}|{n}"))
+    judged = j.notna()
+    low = name.str.lower()
+    maternity = j.map(lambda x: bool(x) and x["category"] == "maternity") | low.str.contains("maternity|women", regex=True)
+    good = j.map(lambda x: bool(x) and x["p_emergency"] >= DEST_MIN_P) | low.map(places.norm).isin(ER_NAMES)
+    old_bad = low.str.contains(NOT_ER, regex=True)
+    good = good.where(judged, (low.map(places.norm).isin(ER_NAMES) | low.str.contains(MAJOR, regex=True)) & ~old_bad)
+    if call_type != "pregnancy":
+        good &= ~maternity
+    pick = h[good]
+    return pick if len(pick) else h[~old_bad] if (~old_bad).any() else h
 BUSY: set = set()          # vehicle ids already sent in this demo session
 PENDING: dict = {}         # dispatch_id -> draft
 SENT: list = []            # confirmed alerts
@@ -157,23 +169,83 @@ def find_place(query: str) -> list:
                  precision="approximate", source="OpenStreetMap Nominatim") for x in res]
 
 
-def dispatch(place: str, call_type: str = "other", hour: int | None = None) -> dict:
+DECISION_MODEL = "models/gemini-decision-1"
+CALL_TYPE_CRITERIA = {
+    "pregnancy": "labour pains, pregnancy bleeding or other pregnancy problem",
+    "trauma": "road accident, fall, injury, assault, burns",
+    "cardiac": "chest pain, heart attack, sudden collapse",
+    "stroke": "face drooping, slurred speech, sudden weakness on one side",
+    "respiratory": "breathing difficulty, choking, asthma attack",
+    "other": "another illness: fever, poisoning, seizure, diabetic problem",
+    "not_described": "the message does not say what is wrong with the patient",
+}
+
+
+def decide(message: str, cands: list) -> dict:
+    """One gemini-decision-1 request per dispatch, calibrated probabilities for three typed questions over the
+    dispatcher's message: call type (Choice), danger signs (Noul) and, when the place search returned spots more
+    than 1 km apart, which candidate is meant (Choice). Distance and thresholds stay in code. Returns
+    pick (candidate index, or None = ask the dispatcher), call_type, danger ("yes"/"no"/"unsure")."""
+    near = [km(c, cands[0]) <= 1.0 for c in cands]
+    questions = {
+        "call_type": {"type": "choice", "criteria": CALL_TYPE_CRITERIA,
+                      "instructions": "What is the patient's main problem, according to `message`?"},
+        "danger": {"type": "noul", "instructions": "Does `message` describe a life-threatening sign?",
+                   "criteria": {"true_description": "unconscious, not breathing, chest pain, heavy bleeding, seizure, "
+                                                    "stroke signs, severe breathing difficulty",
+                                "false_description": "a minor or non-life-threatening problem, or no condition described"}},
+    }
+    if not all(near):
+        questions["place"] = {"type": "choice", "instructions": "Which of `candidates` is the place `message` refers to?",
+                              "criteria": {str(i): c["label"] + (f", {c['area']}" if c.get("area") else "")
+                                           for i, c in enumerate(cands)} | {"none": "none of the candidates"}}
+    state = {"context": "A dispatcher's message in Karnataka's 108 ambulance control room (Bengaluru, Tumakuru). "
+                        "It may be in English, Kannada or a mix.",
+             "message": message, "candidates": [c["label"] for c in cands]}
+    try:
+        ans = CLIENT.decisions.create(api_version="v1beta", model=DECISION_MODEL, questions=questions,
+                                      input=json.dumps(state, ensure_ascii=False), timeout=4).answers
+    except Exception:  # slow or failed: no guessed address for far-apart spots, and the condition gets asked
+        return dict(pick=0 if all(near) else None, call_type="other", danger="unsure")
+    ct, p = ans["call_type"], ans["danger"].noul
+    pick = 0
+    if "place" in ans:
+        pl = ans["place"]
+        # ponytail: 0.6 is hand-picked; set it from labelled dispatcher messages
+        pick = int(pl.choice) if pl.choice != "none" and pl.confidence >= 0.6 else (0 if near[1] else None)
+    return dict(pick=pick,
+                call_type=ct.choice if ct.choice in CALL_MIX and ct.confidence >= 0.5 else "unsure",
+                danger="yes" if p >= 0.7 else "no" if p <= 0.3 else "unsure")
+
+
+def km(a: dict, b: dict) -> float:
+    return float(np.hypot(a["lat"] - b["lat"], (a["lon"] - b["lon"]) * np.cos(np.radians(13)))) * 111.2
+
+
+def dispatch(place: str, hour: int | None = None, message: str = "") -> dict:
     cands = find_place(place)
     if not cands:
         return dict(reply=f"I couldn't find \"{place}\" in Bengaluru or Tumakuru. Could you add a landmark or area name?")
-    c = cands[0]
-    d = plan_dispatch(c["lat"], c["lon"], c["label"], call_type, hour)
+    dec = decide(message or place, cands)
+    i, call_type, danger_signs = dec["pick"], dec["call_type"], dec["danger"]
+    if i is None:
+        opts = "; ".join(f"{k + 1}. {c['label']}" + (f", {c['area']}" if c.get("area") else "") for k, c in enumerate(cands))
+        return dict(reply=f"I found more than one match for \"{place}\". Which one? {opts}")
+    c = cands[i]
+    d = plan_dispatch(c["lat"], c["lon"], c["label"], call_type, hour, danger_signs)
     if "error" in d:
         return dict(reply=d["error"])
-    a = d["ambulance"]
-    d["alt"] = cands[1]["label"] if len(cands) > 1 else None
+    d["alt"] = next((x["label"] for k, x in enumerate(cands) if k != i), None)
     where = c["label"] if c["label"].startswith("near ") else f"at {c['label']}"
     # the card on screen carries the details; the message stays one line
     txt = f"Help is planned for the patient {where}. Check the details and press Confirm to alert the team."
+    if call_type not in CALL_MIX or danger_signs == "unsure":
+        txt += " Condition unclear: ask if the patient is conscious, breathing normally, or bleeding heavily."
     return dict(reply=txt, dispatch=d)
 
 
-def plan_dispatch(lat: float, lon: float, place_label: str, call_type: str = "other", hour: int | None = None) -> dict:
+def plan_dispatch(lat: float, lon: float, place_label: str, call_type: str = "other", hour: int | None = None,
+                  danger_signs: str = "unsure") -> dict:
     r = region_of(lat, lon)
     if r is None:
         return dict(error="This location is outside the Bengaluru and Tumakuru areas GoldenHour covers.")
@@ -181,6 +253,7 @@ def plan_dispatch(lat: float, lon: float, place_label: str, call_type: str = "ot
     b, f = block_of(hour), factor(r, hour)
     call_type = call_type if call_type in CALL_MIX else "other"
     needs_als, bike_helps = CALL_MIX[call_type]["needs_als"], CALL_MIX[call_type]["bike_helps"]
+    needs_als = needs_als or danger_signs == "yes"  # a danger sign wins over a non-critical call type
     patient = snap(lat, lon)
     # one search towards the patient (reverse graph) gives every unit's drive time and route
     to_pat, pred_to = dijkstra(GT, indices=patient, limit=LIMIT_S, return_predecessors=True)
@@ -274,7 +347,6 @@ DECLS = [
         description="Send help to a patient or show the route to a place in Bengaluru/Tumakuru. Plans the unit, route, hospital and draft alerts.",
         parameters_json_schema={"type": "object", "properties": {
             "place": {"type": "string", "description": "Place, landmark or address. Expand abbreviations (DSCE -> Dayananda Sagar College)."},
-            "call_type": {"type": "string", "enum": list(CALL_MIX)},
             "hour": {"type": "integer", "description": "0-23, only if the user gives a time"}},
             "required": ["place"]}),
     types.FunctionDeclaration(
@@ -285,8 +357,7 @@ DECLS = [
         parameters_json_schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}),
 ]
 SYSTEM = ("You are the GoldenHour assistant in Karnataka's 108 ambulance control room (Bengaluru, Tumakuru). "
-          "Patient location or route request -> call dispatch (guess call_type: pregnancy, trauma/accident, cardiac/chest pain, "
-          "stroke, respiratory/breathing, else other). Performance questions -> region_summary or ward_stats. "
+          "Patient location or route request -> call dispatch. Performance questions -> region_summary or ward_stats. "
           "Otherwise answer in 1-3 short sentences. Never invent numbers. Reply in the user's language.")
 
 
@@ -316,7 +387,10 @@ def chat(session: str, message: str) -> dict:
     if calls:
         c = calls[0]
         try:
-            out = TOOLS[c.name](**dict(c.args or {}))
+            args = dict(c.args or {})
+            if c.name == "dispatch":
+                args["message"] = message  # the place check judges against the dispatcher's own words
+            out = TOOLS[c.name](**args)
         except Exception as e:
             out = dict(reply=f"Sorry, that failed ({type(e).__name__}). Please try again.")
     else:
