@@ -124,6 +124,11 @@ cd NoHourTODie
 make setup
 make data
 make geo travel demand forecast export
+#    ...or skip the download and the hours of compute: unpack the team data package instead
+#    make package     (reads GoldenHour_Data.zip; keeps any file a real run already wrote)
+
+# 2b. Black spots for the fleet map (~15 min; make blackspots-quick takes ~3)
+make blackspots
 
 # 3. Start the Web Dashboard
 cd web
@@ -152,6 +157,42 @@ What happens during the demo:
 5. **Coverage is kept.** When a unit leaves its standby spot, the command centre shows which areas no longer have an ambulance within the target, and suggests the one move that closes the gap without opening a bigger one elsewhere. It suggests a move only when the gain is at least 0.05 calls an hour.
 
 All of this is a demo: units are assumed free unless already sent in this session, alerts are only logged, and state is kept in memory.
+
+### Black spots: where the ambulance could not reach in time
+
+Open **Fleet plan** and pick **Black spots** in the map colours. On **Live calls**, the **Black spots** button lays them over the live map.
+
+- **Find.** Each plan is replayed call by call over 12 weeks. A hexagon is a black spot when at least 3 of its calls were late and, at one-sided 95% confidence (Wilson lower bound), at least half were late. A dark edge means it was also a black spot in the 12 weeks before. On 4-week windows only about a third of black spots recur, because each hexagon gets few calls. On 12 weeks about half recur in Bengaluru and two thirds in Tumakuru.
+- **Explain.** For every late call, the replay also records the drive from the nearest staffed site and from the nearest candidate site of any kind. That gives one cause per call:
+  - **out of reach:** no site can reach it in time, so open a post;
+  - **no unit planned nearby:** a site could reach it, but none is staffed, so re-place a unit;
+  - **nearby unit busy:** a staffed unit was out on another job, so add a unit.
+- **Fix, then re-plan.** Each step re-plans with the same MEXCLP MILP and is replayed again:
+  1. **Re-place.** The same fleet, with black-spot hexagons weighted up in the objective, in 3 feedback rounds.
+  2. **Add posts.** New standby posts go at out-of-reach black spots. Their drive times come from Dijkstra on the OSM graph, and they are chosen by greedy maximum coverage of late calls.
+  3. **Add ambulances.**
+
+  The map then shows each fix's units, block by block, with fixed (green) and new (cyan) black spots outlined.
+- **Chronic, new, resolved.** Each plan's black spots are compared with the same plan's previous 12 weeks. **Chronic** spots (dark outline) are black in both periods, **new** spots (magenta outline) only now, and **resolved** spots (green outline) only before. For a stage, the comparison can switch to **the stage before it**, for a before-and-after view of each intervention.
+- **On the map.** Filter chips show or hide chronic, new and resolved spots, and each cause. Proposed posts are cyan pins. Clicking a hexagon shows its total calls, late calls, late %, confidence score (the Wilson lower bound) and the count of each cause. A stage table compares every stage with the one before (spots, resolved, new, in time), and also appears on the Results page.
+- **Held out.** Weights and posts are chosen on the 12 weeks before. Every number shown is from the last 12 weeks, 9 Aug to 31 Oct 2026. Solved plans are cached in `data/processed/blackspots_cache/`, so re-exporting takes seconds; `--no-cache` re-solves.
+
+| 12 weeks, synthetic calls | Black spots | Late calls in them | Reached in time |
+|---|---|---|---|
+| Bengaluru, Today (hospitals) | 336 | 4,322 | 71.5% |
+| Bengaluru, GoldenHour plan | 61 | 1,052 | 68.6% |
+| + re-placed for black spots (same fleet) | 45 | 740 | 68.4% |
+| + 6 posts (2 staffed; out-of-reach late calls 201 to 50) | 53 | 816 | 68.9% |
+| + 7 ambulances (+10%) | 40 | 467 | 74.5% |
+| + 18 ambulances (+25%) | 20 | 276 | 81.2% |
+| Tumakuru, GoldenHour plan | 960 | 5,327 | 16.4% |
+| + 8 ambulances (+25%), with 8 posts | 937 | 5,067 | 19.7% |
+
+**What the numbers say:**
+- **Bengaluru.** Today's plan has five times as many black spots as GoldenHour's. Today reaches more calls in time overall, but its late calls pile up in the same places. Re-placing the same fleet removes about a quarter of the remaining black spots. Posts cure the out-of-reach calls, but the optimiser staffs only 2 of the 6, so black spots rise against re-placing alone. Most late calls (about 90%) are busy-unit delays, spread thinly, and only more ambulances fix those.
+- **Tumakuru.** Most of the district is out of reach at the 10-minute target. Re-placing does not help there, and posts help little without more vehicles. This is a fleet-size and target question, not a placement one.
+
+Files: `pipeline/blackspots.py`, thresholds `BLACKSPOT_*` in `pipeline/config.py`, map code in `web/src/blackspots/`, tests in `tests/test_blackspots.py`.
 
 
 ---

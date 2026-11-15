@@ -1,9 +1,9 @@
-.PHONY: all setup data assistant ops geo facilities travel demand forecast export web test run clean advisor-setup advisor-test advisor-api advisor-sim advisor-report advisor-worklist
+.PHONY: all setup data package blackspots blackspots-quick assistant ops geo facilities travel demand forecast export web test run clean advisor-setup advisor-test advisor-api advisor-sim advisor-report advisor-worklist
 
 VENV = .venv/bin/python
 NPM = npm
 
-all: geo facilities travel demand forecast export web
+all: geo facilities travel demand forecast export blackspots web
 
 # One-time: Python env (uv) and the two raw downloads (~580 MB). Geofabrik supports resuming with -C -.
 setup:
@@ -32,6 +32,17 @@ forecast:
 
 export:
 	$(VENV) pipeline/export.py
+
+# Seed data/processed and web/public/data from GoldenHour_Data.zip instead of `make data geo travel demand forecast export`
+package:
+	$(VENV) pipeline/package.py
+
+# Black spots: where the ambulance could not reach in time, why, and re-plans that fix them (~15 min; quick ~3 min)
+blackspots:
+	$(VENV) pipeline/blackspots.py
+
+blackspots-quick:
+	$(VENV) pipeline/blackspots.py --quick
 
 web:
 	cd web && $(NPM) run build

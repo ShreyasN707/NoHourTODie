@@ -39,6 +39,9 @@ from pipeline.config import (
 from pipeline.optimize import BlockPlan
 
 
+HOUR_TO_BLOCK = {h: b["id"] for b in PLANNING_BLOCKS for h in b["hours"]}
+
+
 @dataclass
 class SimulationResults:
     total_calls: int
@@ -79,7 +82,7 @@ def link_vehicle_standbys(plans: List[BlockPlan], ss_matrix: np.ndarray) -> Tupl
     return sites, is_als
 
 
-def simulate_plan(
+def replay_calls(
     reg_code: str,
     plans: List[BlockPlan],
     df_calls: pd.DataFrame,
@@ -89,91 +92,92 @@ def simulate_plan(
     back: np.ndarray,
     ss: np.ndarray,
     sim_days: int = SIMULATION_DAYS,
-) -> SimulationResults:
-    """Run discrete-event simulation over the last sim_days of calls."""
+    end_offset_days: int = 0,
+) -> pd.DataFrame:
+    """Replay sim_days of calls ending end_offset_days before the last day; one row per call.
+
+    Besides the response time, each row records two counterfactual drive times that explain a late arrival:
+      planned_min: call handling + drive from the nearest standby site the plan staffs in that block
+                   (what the caller would get if every planned unit were home and free)
+      best_min:    call handling + drive from the nearest candidate site of any kind
+                   (the best any placement of this candidate set could do)
+    Sites may include proposed posts beyond df_sites (fwd/ss rows past len(df_sites)); they are never hospitals.
+    """
     cfg = REGIONS[reg_code]
     rng = np.random.default_rng(SEED)
-
-    target_min = cfg.target_min
     n_bikes = int(plans[0].y.sum())
 
-    # Map cells to index 0..N-1
     h3_to_idx = {h: i for i, h in enumerate(df_cells["h3_index"])}
-    zones_list = df_cells["zone"].values
 
     # Hospital sites for patient transport
-    hosp_sites = np.where(df_sites["site_type"] == "hospital")[0]
+    hosp_sites = np.where(df_sites["site_type"].to_numpy() == "hospital")[0]
     if len(hosp_sites) == 0:
         hosp_sites = np.arange(len(df_sites))
-
-    # Nearest hospital index for each cell
-    back_hosp = back[:, hosp_sites]
-    nearest_hosp_local = np.argmin(back_hosp, axis=1)
-    cell_nearest_hosp = hosp_sites[nearest_hosp_local]
+    cell_nearest_hosp = hosp_sites[np.argmin(back[:, hosp_sites], axis=1)]
 
     # Daily vehicle standby chain
     vehicle_standbys, amb_is_als = link_vehicle_standbys(plans, ss)
     n_amb = len(amb_is_als)
 
-    # Filter calls to last sim_days
-    max_day = df_calls["day_of_year"].max()
+    # Calls in the replay window
+    max_day = int(df_calls["day_of_year"].max()) - end_offset_days
     min_day = max_day - sim_days + 1
-    test_calls = df_calls[df_calls["day_of_year"] >= min_day].copy()
-    test_calls = test_calls.sort_values("timestamp").reset_index(drop=True)
-
+    in_window = (df_calls["day_of_year"] >= min_day) & (df_calls["day_of_year"] <= max_day)
+    test_calls = df_calls[in_window].sort_values("timestamp").reset_index(drop=True)
     n_calls = len(test_calls)
-    if n_calls == 0:
-        return SimulationResults(0, 0, 0, 0, 0, 0, 0, 0, [0]*61, [], {})
 
-    # Convert timestamps to simulation seconds from start
-    start_ts = pd.to_datetime(test_calls["timestamp"].iloc[0])
-    call_times_sec = (
-        pd.to_datetime(test_calls["timestamp"]) - start_ts
-    ).dt.total_seconds().values
+    ts = pd.to_datetime(test_calls["timestamp"])
+    call_times_sec = (ts - ts.iloc[0]).dt.total_seconds().to_numpy() if n_calls else np.zeros(0)
+    hours = test_calls["hour"].to_numpy(dtype=np.int64)
+    blocks = test_calls["block"].to_numpy(dtype=np.int64)
+    cell_idx = np.array([h3_to_idx.get(h, 0) for h in test_calls["h3_index"]], dtype=np.int64)
+    needs_als_arr = test_calls["needs_als"].to_numpy(dtype=bool)
+    bike_helps_arr = test_calls["bike_helps"].to_numpy(dtype=bool)
 
-    # Vehicle state:
-    # available_time_sec (float)
-    # current_site (int)
-    # is_als (bool)
+    # Vehicle state
     amb_free_time = np.zeros(n_amb, dtype=np.float64)
-    amb_curr_site = vehicle_standbys[:, 0].copy()
+    amb_curr_site = vehicle_standbys[:, 0].copy() if n_amb else np.zeros(0, dtype=np.int32)
     # Time each unit is back at its standby site; until then it sits at the hospital it just left
     amb_home_time = np.zeros(n_amb, dtype=np.float64)
 
-    # Bike state
-    bike_free_time = np.zeros(n_bikes, dtype=np.float64)
     # Bikes follow the plan block by block too (chained like the ambulances)
+    bike_free_time = np.zeros(n_bikes, dtype=np.float64)
     bike_standbys = _chain([p.y for p in plans], ss)
 
-    hourly_factors = (
-        list(BENGALURU_HOURLY_CONGESTION) if cfg.congestion_enabled else [1.10] * 24
-    )
+    hourly_factors = list(BENGALURU_HOURLY_CONGESTION) if cfg.congestion_enabled else [1.10] * 24
 
-    # Output metric logs
+    # Counterfactual free-flow seconds per cell: nearest staffed site per block, nearest candidate site overall
+    planned_ff = np.stack([
+        fwd[np.unique(vehicle_standbys[:, b])].min(axis=0) if n_amb else np.full(fwd.shape[1], np.inf)
+        for b in range(len(plans))
+    ])
+    best_ff = fwd.min(axis=0)
+
     response_times = np.zeros(n_calls, dtype=np.float32)
     first_help_times = np.zeros(n_calls, dtype=np.float32)
     was_queued = np.zeros(n_calls, dtype=bool)
     als_received = np.zeros(n_calls, dtype=bool)
+    unit_from = np.zeros(n_calls, dtype=np.int32)
+    planned_min = np.zeros(n_calls, dtype=np.float32)
+    best_min = np.zeros(n_calls, dtype=np.float32)
 
-    # Simulation main loop
     for k in range(n_calls):
         t_call = call_times_sec[k]
-        hour = test_calls["hour"].iloc[k]
-        b_id = test_calls["block"].iloc[k]
-        c_h3 = test_calls["h3_index"].iloc[k]
-        c_idx = h3_to_idx.get(c_h3, 0)
-        needs_als = test_calls["needs_als"].iloc[k]
-        bike_helps = test_calls["bike_helps"].iloc[k]
+        hour = hours[k]
+        b_id = blocks[k]
+        c_idx = cell_idx[k]
+        needs_als = needs_als_arr[k]
 
         factor = hourly_factors[hour]
         amb_speed_fact = factor / (AMBULANCE_SPEED_MULTIPLIER * 60.0)  # minutes per second
+        planned_min[k] = PRE_TRAVEL_MIN + planned_ff[b_id, c_idx] * amb_speed_fact
+        best_min[k] = PRE_TRAVEL_MIN + best_ff[c_idx] * amb_speed_fact
 
         # 1. Check bike dispatch
         bike_arrival_min = np.inf
-        if bike_helps and n_bikes > 0:
+        if bike_helps_arr[k] and n_bikes > 0:
             free_bikes = np.where(bike_free_time <= t_call)[0]
             if len(free_bikes) > 0:
-                # Drive times from current bike sites
                 b_sites = bike_standbys[free_bikes, b_id]
                 b_drive_mins = fwd[b_sites, c_idx] * (1.0 + 0.4 * (factor - 1.0)) / 60.0
                 best_b_local = np.argmin(b_drive_mins)
@@ -189,48 +193,31 @@ def simulate_plan(
         # 2. Dispatch ambulance
         free_ambs = np.where(amb_free_time <= t_call)[0]
         if len(free_ambs) > 0:
-            # Idle units: update location to scheduled standby for block b_id
             # Units that have finished driving back sit at the current block's standby site;
             # units still on the way back are dispatched from the hospital they left (GPS-tracked)
-            for v in free_ambs:
-                if amb_home_time[v] <= t_call:
-                    amb_curr_site[v] = vehicle_standbys[v, b_id]
+            home = free_ambs[amb_home_time[free_ambs] <= t_call]
+            amb_curr_site[home] = vehicle_standbys[home, b_id]
 
-            # Compute drive times from vehicle current sites
             v_sites = amb_curr_site[free_ambs]
             drive_mins = fwd[v_sites, c_idx] * amb_speed_fact
 
             # Prioritize ALS if critical
+            best_sub = int(np.argmin(drive_mins))
             if needs_als:
-                als_mask = amb_is_als[free_ambs]
-                als_free_idx = np.where(als_mask)[0]
-                best_any = int(np.argmin(drive_mins))
-                if len(als_free_idx) and drive_mins[als_free_idx].min() <= drive_mins[best_any] + ALS_EXTRA_MIN:
-                    best_als_sub = np.argmin(drive_mins[als_free_idx])
-                    chosen_v = free_ambs[als_free_idx[best_als_sub]]
-                    chosen_drive = drive_mins[als_free_idx[best_als_sub]]
-                else:
-                    best_sub = np.argmin(drive_mins)
-                    chosen_v = free_ambs[best_sub]
-                    chosen_drive = drive_mins[best_sub]
-            else:
-                best_sub = np.argmin(drive_mins)
-                chosen_v = free_ambs[best_sub]
-                chosen_drive = drive_mins[best_sub]
-
+                als_free_idx = np.where(amb_is_als[free_ambs])[0]
+                if len(als_free_idx) and drive_mins[als_free_idx].min() <= drive_mins[best_sub] + ALS_EXTRA_MIN:
+                    best_sub = int(als_free_idx[np.argmin(drive_mins[als_free_idx])])
+            chosen_v = free_ambs[best_sub]
+            chosen_drive = drive_mins[best_sub]
             queue_wait_min = 0.0
-            was_queued[k] = False
         else:
-            # Queue call: wait for earliest free ambulance
-            earliest_v = np.argmin(amb_free_time)
-            queue_wait_min = (amb_free_time[earliest_v] - t_call) / 60.0
-            chosen_v = earliest_v
-            # Vehicle becomes free at its handover hospital
-            hosp_s = amb_curr_site[chosen_v]
-            chosen_drive = fwd[hosp_s, c_idx] * amb_speed_fact
+            # Queue call: wait for earliest free ambulance, which becomes free at its handover hospital
+            chosen_v = int(np.argmin(amb_free_time))
+            queue_wait_min = (amb_free_time[chosen_v] - t_call) / 60.0
+            chosen_drive = fwd[amb_curr_site[chosen_v], c_idx] * amb_speed_fact
             was_queued[k] = True
 
-        # Total response time
+        unit_from[k] = amb_curr_site[chosen_v]
         resp_min = queue_wait_min + PRE_TRAVEL_MIN + chosen_drive
         response_times[k] = resp_min
         first_help_times[k] = min(resp_min, bike_arrival_min)
@@ -247,58 +234,56 @@ def simulate_plan(
         amb_free_time[chosen_v] = t_call + (total_job_min * 60.0)
         amb_curr_site[chosen_v] = dest_hosp
         # then drives back to its standby site for the block it is in at that moment
-        free_hour = int((test_calls["hour"].iloc[k] + total_job_min / 60.0) % 24)
-        home_site = vehicle_standbys[chosen_v, next(b["id"] for b in PLANNING_BLOCKS if free_hour in b["hours"])]
+        free_hour = int((hour + total_job_min / 60.0) % 24)
+        home_site = vehicle_standbys[chosen_v, HOUR_TO_BLOCK[free_hour]]
         amb_home_time[chosen_v] = amb_free_time[chosen_v] + ss[dest_hosp, home_site] * amb_speed_fact * 60.0
 
-    # Aggregate metrics
-    within_target = (response_times <= target_min).mean() * 100.0
-    med_resp = float(np.median(response_times))
-    p90_resp = float(np.percentile(response_times, 90))
-    p95_resp = float(np.percentile(response_times, 95))
-    first_help_10m = (first_help_times <= 10.0).mean() * 100.0
-    queued_pct = was_queued.mean() * 100.0
+    log = test_calls[["call_id", "timestamp", "day_of_year", "hour", "block", "h3_index", "zone", "call_type",
+                      "needs_als", "bike_helps"]].copy()
+    log["cell_idx"] = cell_idx
+    log["response_min"] = response_times
+    log["first_help_min"] = first_help_times
+    log["queued"] = was_queued
+    log["als_received"] = als_received
+    log["unit_from_site"] = unit_from
+    log["planned_min"] = planned_min
+    log["best_min"] = best_min
+    return log
 
-    crit_mask = test_calls["needs_als"].values
-    als_pct = (
-        (als_received[crit_mask].mean() * 100.0) if np.any(crit_mask) else 100.0
-    )
+
+def summarize(log: pd.DataFrame, plans: List[BlockPlan], target_min: float) -> SimulationResults:
+    """Aggregate a replay log into the dashboard metrics."""
+    n_calls = len(log)
+    if n_calls == 0:
+        return SimulationResults(0, 0, 0, 0, 0, 0, 0, 0, [0] * 61, [], {})
+    response_times = log["response_min"].to_numpy()
+    first_help_times = log["first_help_min"].to_numpy()
+
+    within_target = (response_times <= target_min).mean() * 100.0
+    crit_mask = log["needs_als"].to_numpy(dtype=bool)
+    als_received = log["als_received"].to_numpy(dtype=bool)
+    als_pct = (als_received[crit_mask].mean() * 100.0) if np.any(crit_mask) else 100.0
 
     # 0 to 60 minute response histogram
     hist_counts, _ = np.histogram(response_times, bins=61, range=(0, 61))
-    hist_list = hist_counts.tolist()
 
-    # Per-block summaries
     per_block = []
+    blocks = log["block"].to_numpy()
     for b_id in range(6):
-        b_mask = test_calls["block"].values == b_id
-        if np.any(b_mask):
-            b_resp = response_times[b_mask]
-            per_block.append({
-                "block_id": b_id,
-                "name": PLANNING_BLOCKS[b_id]["name"],
-                "calls": int(b_mask.sum()),
-                "within_target_pct": round(float((b_resp <= target_min).mean() * 100.0), 1),
-                "median_min": round(float(np.median(b_resp)), 1),
-                "p90_min": round(float(np.percentile(b_resp, 90)), 1),
-                "busy_fraction": round(float(plans[b_id].busy_fraction), 3),
-            })
-        else:
-            per_block.append({
-                "block_id": b_id,
-                "name": PLANNING_BLOCKS[b_id]["name"],
-                "calls": 0,
-                "within_target_pct": 0.0,
-                "median_min": 0.0,
-                "p90_min": 0.0,
-                "busy_fraction": round(float(plans[b_id].busy_fraction), 3),
-            })
+        b_resp = response_times[blocks == b_id]
+        has = len(b_resp) > 0
+        per_block.append({
+            "block_id": b_id,
+            "name": PLANNING_BLOCKS[b_id]["name"],
+            "calls": int(len(b_resp)),
+            "within_target_pct": round(float((b_resp <= target_min).mean() * 100.0), 1) if has else 0.0,
+            "median_min": round(float(np.median(b_resp)), 1) if has else 0.0,
+            "p90_min": round(float(np.percentile(b_resp, 90)), 1) if has else 0.0,
+            "busy_fraction": round(float(plans[b_id].busy_fraction), 3),
+        })
 
-    # Per-zone statistics
-    test_calls["response_min"] = response_times
-    test_calls["in_target"] = response_times <= target_min
     per_zone = {}
-    for z, grp in test_calls.groupby("zone"):
+    for z, grp in log.assign(in_target=log["response_min"] <= target_min).groupby("zone"):
         per_zone[z] = {
             "calls": len(grp),
             "within_target_pct": round(float(grp["in_target"].mean() * 100.0), 1),
@@ -309,13 +294,29 @@ def simulate_plan(
     return SimulationResults(
         total_calls=n_calls,
         within_target_pct=round(within_target, 1),
-        median_min=round(med_resp, 1),
-        p90_min=round(p90_resp, 1),
-        p95_min=round(p95_resp, 1),
-        first_help_10m_pct=round(first_help_10m, 1),
-        queued_pct=round(queued_pct, 1),
+        median_min=round(float(np.median(response_times)), 1),
+        p90_min=round(float(np.percentile(response_times, 90)), 1),
+        p95_min=round(float(np.percentile(response_times, 95)), 1),
+        first_help_10m_pct=round((first_help_times <= 10.0).mean() * 100.0, 1),
+        queued_pct=round(log["queued"].mean() * 100.0, 1),
         als_for_critical_pct=round(als_pct, 1),
-        histogram=hist_list,
+        histogram=hist_counts.tolist(),
         per_block=per_block,
         per_zone=per_zone,
     )
+
+
+def simulate_plan(
+    reg_code: str,
+    plans: List[BlockPlan],
+    df_calls: pd.DataFrame,
+    df_cells: pd.DataFrame,
+    df_sites: pd.DataFrame,
+    fwd: np.ndarray,
+    back: np.ndarray,
+    ss: np.ndarray,
+    sim_days: int = SIMULATION_DAYS,
+) -> SimulationResults:
+    """Run discrete-event simulation over the last sim_days of calls."""
+    log = replay_calls(reg_code, plans, df_calls, df_cells, df_sites, fwd, back, ss, sim_days)
+    return summarize(log, plans, REGIONS[reg_code].target_min)

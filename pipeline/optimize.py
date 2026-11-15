@@ -686,8 +686,18 @@ def solve_goldenhour_rolling(
     demand_scale: float = 1.0,
     traffic_scale: float = 1.0,
     availability: float = BASE_AVAILABILITY,
+    lam_multiplier: Optional[np.ndarray] = None,
+    fwd: Optional[np.ndarray] = None,
+    df_sites: Optional[pd.DataFrame] = None,
+    time_limit_scale: float = 1.0,
 ) -> List[BlockPlan]:
-    """Solve GoldenHour multi-period rolling horizon MILP with move smoothing."""
+    """Solve GoldenHour multi-period rolling horizon MILP with move smoothing.
+
+    lam_multiplier: per-cell priority weights (e.g. from black spots). Each block's demand is reweighted and
+        rescaled to its original total, so priorities shift but the busy-fraction estimate is unchanged.
+    fwd, df_sites: an extended candidate set (e.g. with proposed standby posts); default is the region's own.
+    time_limit_scale: scales every HiGHS time limit (below 1 for quick runs).
+    """
     cfg = REGIONS[reg_code]
     # fleet_* are the physical fleet; only the available share is planned
     n_amb = on_road(fleet_ambulances if fleet_ambulances is not None else cfg.fleet_ambulances, availability)
@@ -695,10 +705,13 @@ def solve_goldenhour_rolling(
     move_cap = int(np.floor(MOVES_CAP_FRACTION * n_amb))
 
     df_cells = pd.read_parquet(PROCESSED_DIR / f"cells_{reg_code}.parquet")
-    df_sites = pd.read_parquet(PROCESSED_DIR / f"sites_{reg_code}.parquet")
+    if df_sites is None:
+        df_sites = pd.read_parquet(PROCESSED_DIR / f"sites_{reg_code}.parquet")
     df_lam = pd.read_parquet(PROCESSED_DIR / f"lam_{reg_code}.parquet")
-    travel = np.load(PROCESSED_DIR / f"travel_{reg_code}.npz")
-    fwd = travel["fwd"]
+    if fwd is None:
+        fwd = np.load(PROCESSED_DIR / f"travel_{reg_code}.npz")["fwd"]
+    if fwd.shape[0] != len(df_sites):
+        raise ValueError(f"fwd has {fwd.shape[0]} site rows but df_sites has {len(df_sites)}")
 
     hourly_factors = (
         list(BENGALURU_HOURLY_CONGESTION) if cfg.congestion_enabled else [1.10] * 24
@@ -716,7 +729,11 @@ def solve_goldenhour_rolling(
         factor = float(np.mean([hourly_factors[h] for h in hours]))
         block_drive[b_id] = fwd * factor / (AMBULANCE_SPEED_MULTIPLIER * 60.0)
         block_bike_drive[b_id] = fwd * (1.0 + 0.4 * (factor - 1.0)) / 60.0
-        block_lam[b_id] = df_lam[f"block_{b_id}"].values * demand_scale
+        lam = df_lam[f"block_{b_id}"].values * demand_scale
+        if lam_multiplier is not None:
+            weighted = lam * lam_multiplier
+            lam = weighted * (lam.sum() / weighted.sum())
+        block_lam[b_id] = lam
 
     print(
         f"\n[optimize] Starting Rolling Horizon MEXCLP for {reg_code} "
@@ -729,7 +746,7 @@ def solve_goldenhour_rolling(
         kw = dict(reg_code=reg_code, block_id=b_id, lam=block_lam[b_id], drive_min=block_drive[b_id],
                   bike_drive_min=block_bike_drive[b_id], df_cells=df_cells, df_sites=df_sites,
                   fleet_ambulances=n_amb, als_share=cfg.als_share, fleet_bikes=n_bikes,
-                  time_limit_sec=time_limit_sec)
+                  time_limit_sec=time_limit_sec * time_limit_scale)
         try:
             return solve_single_mexclp(**kw, prev_tot_plan=prev, next_tot_plan=nxt,
                                        move_cap=move_cap if (prev is not None or nxt is not None) else None)

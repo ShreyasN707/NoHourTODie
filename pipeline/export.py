@@ -196,6 +196,47 @@ def compute_fleet_size_curve(
     return curve
 
 
+def write_cells_json(reg_code: str, out_path: Path) -> None:
+    """cells_{r}.json: one record per hexagon with its forecast calls per hour for each block."""
+    df_cells = pd.read_parquet(PROCESSED_DIR / f"cells_{reg_code}.parquet")
+    df_lam = pd.read_parquet(PROCESSED_DIR / f"lam_{reg_code}.parquet").set_index("h3_index")
+    lam = df_lam.loc[df_cells["h3_index"], [f"block_{b}" for b in range(6)]].to_numpy()
+    out = [
+        {
+            "h3": r.h3_index,
+            "lat": round(float(r.lat), 5),
+            "lon": round(float(r.lon), 5),
+            "zone": str(r.zone),
+            "pop": int(round(float(r.pop))),
+            "major_km": round(float(r.major_km), 2),
+            "lam": [round(float(v), 4) for v in lam[i]],
+        }
+        for i, r in enumerate(df_cells.itertuples(index=False))
+    ]
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f)
+    print(f"[export] Written {len(out)} cells to {out_path.name}")
+
+
+def write_sites_json(reg_code: str, out_path: Path) -> None:
+    """sites_{r}.json: every candidate standby site."""
+    df_sites = pd.read_parquet(PROCESSED_DIR / f"sites_{reg_code}.parquet")
+    out = [
+        {
+            "site_id": str(r.site_id),
+            "name": str(r.name),
+            "site_type": str(r.site_type),
+            "lat": round(float(r.lat), 5),
+            "lon": round(float(r.lon), 5),
+            "h3": str(r.h3_index),
+        }
+        for r in df_sites.itertuples(index=False)
+    ]
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f)
+    print(f"[export] Written {len(out)} sites to {out_path.name}")
+
+
 def export_region(reg_code: str):
     """Run optimization, simulation, and export JSON artifacts for one region."""
     cfg = REGIONS[reg_code]
@@ -204,46 +245,14 @@ def export_region(reg_code: str):
     df_cells = pd.read_parquet(PROCESSED_DIR / f"cells_{reg_code}.parquet")
     df_sites = pd.read_parquet(PROCESSED_DIR / f"sites_{reg_code}.parquet")
     df_calls = pd.read_parquet(PROCESSED_DIR / f"calls_{reg_code}.parquet")
-    df_lam = pd.read_parquet(PROCESSED_DIR / f"lam_{reg_code}.parquet")
     travel = np.load(PROCESSED_DIR / f"travel_{reg_code}.npz")
     fwd = travel["fwd"]
     back = travel["back"]
     ss = travel["ss"]
 
-    # 1. Export cells_{r}.json
-    cell_json_list = []
-    for _, r in df_cells.iterrows():
-        c_h3 = r["h3_index"]
-        lam_row = df_lam[df_lam["h3_index"] == c_h3].iloc[0]
-        cell_json_list.append({
-            "h3": c_h3,
-            "lat": round(float(r["lat"]), 5),
-            "lon": round(float(r["lon"]), 5),
-            "zone": str(r["zone"]),
-            "pop": int(round(float(r["pop"]))),
-            "major_km": round(float(r["major_km"]), 2),
-            "lam": [round(float(lam_row[f"block_{b}"]), 4) for b in range(6)],
-        })
-
-    with open(WEB_DATA_DIR / f"cells_{reg_code}.json", "w", encoding="utf-8") as f:
-        json.dump(cell_json_list, f)
-    print(f"[export] Written {len(cell_json_list)} cells to cells_{reg_code}.json")
-
-    # 2. Export sites_{r}.json
-    site_json_list = []
-    for _, r in df_sites.iterrows():
-        site_json_list.append({
-            "site_id": str(r["site_id"]),
-            "name": str(r["name"]),
-            "site_type": str(r["site_type"]),
-            "lat": round(float(r["lat"]), 5),
-            "lon": round(float(r["lon"]), 5),
-            "h3": str(r["h3_index"]),
-        })
-
-    with open(WEB_DATA_DIR / f"sites_{reg_code}.json", "w", encoding="utf-8") as f:
-        json.dump(site_json_list, f)
-    print(f"[export] Written {len(site_json_list)} sites to sites_{reg_code}.json")
+    # 1-2. Export cells_{r}.json and sites_{r}.json
+    write_cells_json(reg_code, WEB_DATA_DIR / f"cells_{reg_code}.json")
+    write_sites_json(reg_code, WEB_DATA_DIR / f"sites_{reg_code}.json")
 
     # 3. Reachability
     reach = compute_reachability(reg_code, fwd, cfg.target_min)
@@ -306,10 +315,9 @@ def export_region(reg_code: str):
     print(f"[export] Saved scenarios to {out_scenarios} ({out_scenarios.stat().st_size / 1e6:.2f} MB)")
 
 
-def export_metadata():
-    """Export meta.json with study assumptions, references, and blocks."""
-    print("\n[export] Exporting meta.json...")
-    meta = {
+def build_metadata() -> Dict[str, Any]:
+    """meta.json content: study assumptions, references, and blocks."""
+    return {
         "title": "GoldenHour",
         "subtitle": "Karnataka 108 Emergency Ambulance Fleet Allocation & Response Planner",
         "team": "Super Intelligence (DSCE) - PES University Zero Hour Hackathon Track 3",
@@ -368,6 +376,11 @@ def export_metadata():
         ],
     }
 
+
+def export_metadata():
+    """Export meta.json with study assumptions, references, and blocks."""
+    print("\n[export] Exporting meta.json...")
+    meta = build_metadata()
     with open(WEB_DATA_DIR / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
     print(f"[export] meta.json written to {WEB_DATA_DIR / 'meta.json'}")

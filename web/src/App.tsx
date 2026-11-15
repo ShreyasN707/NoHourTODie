@@ -15,6 +15,10 @@ import LiveOps from './ops/LiveOps'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ChevronLeft, ChevronRight, Pause, Play, Search, X } from 'lucide-react'
 import { SimResultsView } from './advisor/SimResults'
+import { BlackSpotPanel, StageTable } from './blackspots/BlackSpotPanel'
+import { ALL_FILTER, STATUS_LABEL, blackSpotLayers, classify, effectiveMode, fixDeployments, spotTooltipHtml, type CompareMode, type SpotColor, type SpotFilter } from './blackspots/layers'
+import { CAUSE_RGB, CHANGE_RGB, SEVERITY_LABEL, SEVERITY_RGB, causeLabel, css } from './blackspots/palette'
+import { CAUSE_KEYS, SEVERITIES, type BlackSpotData, type Cluster, type FixKey, type ScenarioKey } from './blackspots/types'
 import './views.css'
 
 // Initial map camera views
@@ -48,12 +52,17 @@ const PLAN_TEXT: Record<'baseline' | 'static' | 'goldenhour', [string, string]> 
   static: ['Best fixed spots', 'The best single set of standby spots for the whole day, chosen by the optimiser. No bikes, no moves.'],
   goldenhour: ['GoldenHour', 'Spots change every 4 hours with demand and traffic, bikes give first help, and at most a quarter of ambulances move between blocks.'],
 }
-const LAYER_TEXT: Record<'cover' | 'nearest' | 'demand' | 'reach', string> = {
+type LayerMode = 'cover' | 'nearest' | 'demand' | 'reach' | 'spots'
+const LAYER_TEXT: Record<LayerMode, string> = {
   cover: 'In time',
   nearest: 'Minutes away',
   demand: 'Calls',
   reach: 'Reachable',
+  spots: 'Black spots',
 }
+// Black-spot results (pipeline/blackspots.py) for each dashboard plan
+const PLAN_TO_SPOTS: Record<'baseline' | 'static' | 'goldenhour', ScenarioKey> = { baseline: 'today', static: 'static', goldenhour: 'current' }
+const SPOT_ZOOM: Record<'blr' | 'tmk', number> = { blr: 12.6, tmk: 10.4 }
 const STRESS_LABEL: Record<string, string> = {
   'Standard Operations': 'A normal day',
   'Demand Surge (+20%)': '20% more calls',
@@ -66,7 +75,7 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   const setRegion = onRegion
   const [planType, setPlanType] = useState<'baseline' | 'static' | 'goldenhour'>('goldenhour')
   const [blockId, setBlockId] = useState<number>(4) // Default to Evening Peak (16:00-20:00)
-  const [layerMode, setLayerMode] = useState<'cover' | 'nearest' | 'demand' | 'reach'>('cover')
+  const [layerMode, setLayerMode] = useState<LayerMode>('cover')
 
   // Operator usability state
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
@@ -76,6 +85,17 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   const [selectedMove, setSelectedMove] = useState<any | null>(null)
   const [viewState, setViewState] = useState<any>(INITIAL_VIEW_STATES.blr)
   const [activeDispatch, setActiveDispatch] = useState<Dispatch | null>(null)
+
+  // Black spots: where the ambulance could not reach in time, and the re-plans that fix them
+  const [spotLoaded, setSpotLoaded] = useState<{ region: string; data: BlackSpotData | null } | null>(null)
+  const spotData = spotLoaded?.region === region ? spotLoaded.data : null
+  const [spotFix, setSpotFix] = useState<FixKey | null>(null)
+  const [spotColor, setSpotColor] = useState<SpotColor>('cause')
+  const [spotMode, setSpotMode] = useState<CompareMode>('before')
+  const [spotFilter, setSpotFilter] = useState<SpotFilter>(ALL_FILTER)
+  const [spotCluster, setSpotCluster] = useState<number | null>(null)
+  const [spotHex, setSpotHex] = useState<number | null>(null)
+  const [liveSpots, setLiveSpots] = useState(false)
 
   // Layer visibility toggles
   const [showHexagons, setShowHexagons] = useState<boolean>(true)
@@ -123,6 +143,25 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
       })
   }, [region])
 
+  // Black-spot data is optional: the map works without it (run `make blackspots` to create it)
+  useEffect(() => {
+    let live = true
+    const done = (data: BlackSpotData | null) => {
+      if (!live) return
+      setSpotLoaded({ region, data })
+      setSpotFix(null)
+      setSpotCluster(null)
+      setSpotHex(null)
+      setSpotMode('before')
+    }
+    fetch(`${import.meta.env.BASE_URL}data/blackspots_${region}.json`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(done, () => done(null))
+    return () => {
+      live = false
+    }
+  }, [region])
+
   // 24-hour Auto-Play Loop
   useEffect(() => {
     if (isPlaying) {
@@ -152,12 +191,53 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   const deltaP90 = currSim && baseSim ? currSim.p90_min - baseSim.p90_min : 0
   const deltaBike = currSim && baseSim ? currSim.first_help_10m_pct - baseSim.first_help_10m_pct : 0
 
-  // Moves for current block in GoldenHour
+  // Black spots: the selected plan's, or a fix's (fixes start from the GoldenHour plan)
+  const spotsMode = view === 'plan' && layerMode === 'spots'
+  const fixActive = spotsMode && spotFix !== null
+  const spotScenario = spotData?.scenarios.find((x) => x.key === (fixActive ? spotFix : PLAN_TO_SPOTS[planType])) ?? null
+  const spotCurrent = spotData?.scenarios.find((x) => x.key === 'current') ?? null
+
+  const spotCls = useMemo(
+    () => (spotData && spotScenario ? classify(spotData, spotScenario, spotsMode ? spotMode : 'before') : null),
+    [spotData, spotScenario, spotsMode, spotMode],
+  )
+  const spotLabels = STATUS_LABEL[spotScenario ? effectiveMode(spotScenario, spotsMode ? spotMode : 'before') : 'before']
+
+  const chooseFix = (f: FixKey | null) => {
+    setSpotFix(f)
+    setSpotCluster(null)
+    setSpotHex(null)
+    if (f) {
+      setPlanType('goldenhour')
+      setSpotMode('stage') // a stage is shown before/after against the stage before it
+    } else setSpotMode('before')
+  }
+  const focusCluster = (c: Cluster | null) => {
+    setSpotCluster(c?.id ?? null)
+    setSpotHex(null)
+    if (!c) return
+    setViewState((v: any) => ({
+      ...v,
+      longitude: c.lon,
+      latitude: c.lat,
+      zoom: Math.max(v.zoom, SPOT_ZOOM[region]),
+      transitionDuration: 900,
+      transitionInterpolator: new FlyToInterpolator(),
+    }))
+  }
+
+  // Units on the map: the plan's, or the black-spot fix's for this block
+  const shownDeployments = useMemo(
+    () => (fixActive && spotData && spotScenario ? fixDeployments(spotData, spotScenario, blockId, sites) : currBlockPlan?.deployments),
+    [fixActive, spotData, spotScenario, blockId, sites, currBlockPlan],
+  )
+
+  // Moves for current block in GoldenHour (a fix has its own units, so no GoldenHour moves then)
   const blockMoves = useMemo(() => {
-    if (planType !== 'goldenhour' || !currScenario?.moves) return []
+    if (fixActive || planType !== 'goldenhour' || !currScenario?.moves) return []
     const m = currScenario.moves.find((mv: any) => mv.from_block === blockId)
     return m ? m.moves : []
-  }, [planType, currScenario, blockId])
+  }, [fixActive, planType, currScenario, blockId])
 
   // Search Results (Wards & Hospitals)
   const searchResults = useMemo(() => {
@@ -203,14 +283,14 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
 
   // Deployed vehicles data with SVG symbols
   const { vehicleMarkers, vehicleBadges, moveEndpoints } = useMemo(() => {
-    if (!currBlockPlan?.deployments) {
+    if (!shownDeployments) {
       return { vehicleMarkers: [], vehicleBadges: [], moveEndpoints: [] }
     }
 
     const markers: any[] = []
     const badges: any[] = []
 
-    currBlockPlan.deployments.forEach((d: any) => {
+    shownDeployments.forEach((d: any) => {
       const totalTypes = (d.a > 0 ? 1 : 0) + (d.b > 0 ? 1 : 0) + (d.y > 0 ? 1 : 0)
 
       // ALS Ambulance
@@ -292,14 +372,14 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
     }))
 
     return { vehicleMarkers: markers, vehicleBadges: badges, moveEndpoints: endpoints }
-  }, [currBlockPlan, blockMoves])
+  }, [shownDeployments, blockMoves])
 
   // Deck.gl Layers Definition
   const layers = useMemo(() => {
     if (!cells.length || !currBlockPlan) return []
 
     // 1. High-Contrast Hexagon Layer
-    const hexLayer = showHexagons
+    const hexLayer = showHexagons && !spotsMode
       ? new H3HexagonLayer({
         id: 'h3-hexagons',
         data: cells,
@@ -487,7 +567,18 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
     showWards,
     scenarios,
     targetMin,
+    spotsMode,
   ])
+
+  const spotLayers = useMemo(() => {
+    if (!spotData || !spotScenario || !spotCurrent || !cells.length) return []
+    if (!spotCls) return []
+    const base = { data: spotData, scenario: spotScenario, cls: spotCls, cells, color: spotColor }
+    if (spotsMode) return blackSpotLayers({ ...base, mode: 'full', filter: spotFilter, selectedCluster: spotCluster, selectedHex: spotHex })
+    if (view === 'live' && liveSpots)
+      return blackSpotLayers({ ...base, color: 'cause', mode: 'overlay', filter: ALL_FILTER, selectedCluster: null, selectedHex: null })
+    return []
+  }, [spotData, spotScenario, spotCurrent, spotCls, cells, spotColor, spotsMode, spotFilter, spotCluster, spotHex, view, liveSpots])
 
   // Response-time distribution: today (grey) vs the selected plan (green within target, amber after)
   const renderHistogram = () => {
@@ -561,6 +652,8 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   })
   const getTooltip = ({ object }: any) => {
     if (!object) return null
+    const spotHtml = spotTooltipHtml(object, targetMin, spotLabels)
+    if (spotHtml) return tip(spotHtml)
     if (object.h3) {
       const lam = object.lam?.[blockId] || 0
       return tip(`<b>${object.zone}</b><br/>${object.pop.toLocaleString()} people<br/>${lam.toFixed(2)} calls per hour now`)
@@ -577,11 +670,18 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
   // Live calls: quieter map (coverage faint, no plan moves) so incoming calls and routes stand out
   const shownLayers = (() => {
     const quiet = view === 'live' || activeDispatch
-    if (!quiet) return layers
+    // Black spots sit just above the coverage hexagons, under borders, moves and vehicles
+    const withSpots = (ls: any[]) => {
+      const i = ls.findIndex((l: any) => l.id === 'h3-hexagons')
+      return [...ls.slice(0, i + 1), ...spotLayers, ...ls.slice(i + 1)]
+    }
+    if (!quiet) return withSpots(layers)
     return [
-      ...layers
-        .filter((l: any) => !['admin-zones', 'crew-moves-arcs', 'move-arrival-rings'].includes(l.id))
-        .map((l: any) => (l.id === 'h3-hexagons' ? l.clone({ opacity: activeDispatch ? 0.12 : 0.22 }) : l)),
+      ...withSpots(
+        layers
+          .filter((l: any) => !['admin-zones', 'crew-moves-arcs', 'move-arrival-rings'].includes(l.id))
+          .map((l: any) => (l.id === 'h3-hexagons' ? l.clone({ opacity: activeDispatch || spotLayers.length ? 0.12 : 0.22 }) : l)),
+      ),
       ...dispatchLayers(activeDispatch),
     ]
   })()
@@ -602,9 +702,22 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
       demand: [['var(--critical)', 'Busiest'], ['var(--risk)', 'Busy'], ['var(--action)', 'Moderate']],
       reach: [['var(--ok)', 'Target reachable'], ['var(--critical)', 'Not reachable']],
     }
+    const spotKey = (spotsMode || (view === 'live' && liveSpots)) && spotScenario ? (
+      <>
+        {spotColor === 'severity' && spotsMode
+          ? SEVERITIES.slice().reverse().map((v) => <span key={v}><i style={{ background: css(SEVERITY_RGB[v]) }} />{SEVERITY_LABEL[v]}</span>)
+          : CAUSE_KEYS.map((c) => <span key={c}><i style={{ background: css(CAUSE_RGB[c]) }} />{causeLabel(c)}</span>)}
+        {spotsMode && <span><i className="bs-ring" style={{ borderColor: css(CHANGE_RGB.chronic) }} />{spotLabels.chronic}</span>}
+        {spotsMode && <span><i className="bs-ring" style={{ borderColor: css(CHANGE_RGB.new) }} />New</span>}
+        {spotsMode && <span><i className="bs-ring" style={{ borderColor: css(CHANGE_RGB.resolved) }} />Resolved</span>}
+        {spotsMode && <span><i style={{ background: 'rgba(91,102,117,.45)' }} />Not a black spot</span>}
+        {fixActive && spotScenario?.posts_used && <span><i className="bs-dot" style={{ background: css(CHANGE_RGB.post) }} />Proposed post</span>}
+      </>
+    ) : null
     return (
       <div className="legend">
-        {view === 'plan' && scale[layerMode].map(([c, t]) => <span key={t}><i style={{ background: c }} />{t}</span>)}
+        {view === 'plan' && layerMode !== 'spots' && scale[layerMode].map(([c, t]) => <span key={t}><i style={{ background: c }} />{t}</span>)}
+        {spotKey}
         <span><img src={`${import.meta.env.BASE_URL}icons/icon-als.svg`} alt="" />Advanced</span>
         <span><img src={`${import.meta.env.BASE_URL}icons/icon-bls.svg`} alt="" />Basic</span>
         {region === 'blr' && <span><img src={`${import.meta.env.BASE_URL}icons/icon-bike.svg`} alt="" />Bike</span>}
@@ -644,7 +757,8 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
         <h2>Plan</h2>
         <div className="choices" role="radiogroup" aria-label="Plan">
           {(['baseline', 'static', 'goldenhour'] as const).map((p) => (
-            <button key={p} role="radio" aria-checked={planType === p} className={planType === p ? 'on' : ''} onClick={() => setPlanType(p)}>
+            <button key={p} role="radio" aria-checked={planType === p} className={planType === p && !fixActive ? 'on' : ''}
+              onClick={() => { setPlanType(p); setSpotFix(null); setSpotCluster(null); setSpotHex(null); setSpotMode('before') }}>
               <b>{PLAN_TEXT[p][0]}</b>
               <span>{PLAN_TEXT[p][1]}</span>
             </button>
@@ -654,7 +768,43 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
           {currScenario?.fleet?.ambulances ?? 0} ambulances{(currScenario?.fleet?.bikes ?? 0) > 0 ? ` and ${currScenario.fleet.bikes} bikes` : ''} on the road
           (about 74% of the fleet). Target: {targetMin} minutes from call to arrival.
         </p>
+        {view === 'plan' && layerMode !== 'spots' && spotData && (
+          <button className="btn small bs-open" onClick={() => setLayerMode('spots')}>
+            Show black spots: where the ambulance could not reach in time
+          </button>
+        )}
       </section>
+
+      {spotsMode && spotData && spotScenario && spotCurrent && spotCls && (
+        <BlackSpotPanel
+          data={spotData}
+          scenario={spotScenario}
+          current={spotCurrent}
+          cls={spotCls}
+          cells={cells}
+          fix={spotFix}
+          onFix={chooseFix}
+          color={spotColor}
+          onColor={setSpotColor}
+          mode={spotMode}
+          onMode={setSpotMode}
+          filter={spotFilter}
+          onFilter={setSpotFilter}
+          selectedCluster={spotCluster}
+          onSelectCluster={focusCluster}
+          selectedHex={spotHex}
+          onSelectHex={setSpotHex}
+        />
+      )}
+      {spotsMode && !spotData && (
+        <section className="sec">
+          <h2>Black spots</h2>
+          <p className="small">
+            No black-spot results for this region yet. From the repo root run <code>make package</code> once, then{' '}
+            <code>make blackspots</code> (about 15 minutes; <code>make blackspots-quick</code> takes about 3).
+          </p>
+        </section>
+      )}
 
       <section className="sec">
         <div className="row between">
@@ -670,15 +820,16 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
         <input type="range" min={0} max={5} step={1} value={blockId} onChange={(e) => setBlockId(Number(e.target.value))} aria-label="Time of day" />
         <div className="ticks">{['12 am', '4 am', '8 am', '12 pm', '4 pm', '8 pm'].map((t) => <span key={t}>{t}</span>)}</div>
         <p className="small">
-          {currSim?.per_block?.[blockId] && baseSim?.per_block?.[blockId] && (
+          {fixActive && <>Units shown are the {spotScenario?.label.toLowerCase()} plan for this block. </>}
+          {!fixActive && currSim?.per_block?.[blockId] && baseSim?.per_block?.[blockId] && (
             <>{currSim.per_block[blockId].within_target_pct}% of calls in this block are reached in time (today: {baseSim.per_block[blockId].within_target_pct}%). </>
           )}
           About {Math.round((currBlockPlan?.q ?? 0) * 100)}% of ambulances are busy at any moment.
-          {planType === 'goldenhour' && blockMoves.length > 0 && <> {blockMoves.length} ambulances move to new spots at the start of this block.</>}
+          {planType === 'goldenhour' && !fixActive && blockMoves.length > 0 && <> {blockMoves.length} ambulances move to new spots at the start of this block.</>}
         </p>
       </section>
 
-      <section className="sec">
+      {!spotsMode && <section className="sec">
         <h2>Over 4 simulated weeks</h2>
         <dl className="stats">
           <div><dt>Reached within {targetMin} min</dt><dd>{currSim ? `${currSim.within_target_pct}%` : '–'}</dd>{delta(deltaTarget, 'pts')}</div>
@@ -687,7 +838,7 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
           <div><dt>First help within 10 min</dt><dd>{currSim ? `${currSim.first_help_10m_pct}%` : '–'}</dd>{delta(deltaBike, 'pts')}</div>
         </dl>
         {renderHistogram()}
-      </section>
+      </section>}
     </aside>
   )
 
@@ -704,6 +855,7 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
       ['wards', `Slowest ${zone}s`],
       ['forecast', 'Demand forecast'],
       ['hospital', 'Right hospital, not nearest'],
+      ['spots', 'Black spots'],
       ['sources', 'Sources'],
     ]
     return (
@@ -795,6 +947,22 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
             <div className="adv-root" data-theme="light"><SimResultsView /></div>
           </section>
 
+          <section id="ev-spots">
+            <h2>Black spots: where help arrives late</h2>
+            {spotData ? (
+              <>
+                <p>
+                  Hexagons where the ambulance repeatedly took over {targetMin} minutes ({spotData.windows.test.start} to {spotData.windows.test.end},
+                  12 simulated weeks). Each stage is re-planned with the optimiser and replayed, then compared with the stage before it.
+                  Fixes were chosen on the 12 weeks before, so these are weeks they never saw. Open Fleet plan, Black spots to see them on the map.
+                </p>
+                <StageTable data={spotData} />
+              </>
+            ) : (
+              <p className="muted">No black-spot results yet: run <code>make blackspots</code>.</p>
+            )}
+          </section>
+
           <section id="ev-sources">
             <h2>Sources</h2>
             <table>
@@ -835,6 +1003,12 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
               </ul>
             )}
           </div>
+          {view === 'live' && spotData && (
+            <button className="btn bs-toggle" aria-pressed={liveSpots} onClick={() => setLiveSpots((v) => !v)}
+              title="Hexagons where the GoldenHour plan repeatedly could not reach a caller in time (simulated)">
+              Black spots{liveSpots && spotScenario ? ` · ${spotScenario.kpis.black_spots}` : ''}
+            </button>
+          )}
           {view === 'plan' && (
             <div className="seg" role="group" aria-label="Map colours">
               {(Object.keys(LAYER_TEXT) as (keyof typeof LAYER_TEXT)[]).map((k) => (
@@ -858,6 +1032,17 @@ export default function App({ view, region, onRegion }: { view: View; region: 'b
           controller={true}
           layers={shownLayers}
           getTooltip={getTooltip}
+          onClick={({ object }: any) => {
+            if (!spotsMode || !spotScenario) return
+            if (object?.spot) {
+              // any hexagon with black-spot data: show its card (and its cluster outline stays off)
+              setSpotCluster(null)
+              setSpotHex(object.idx)
+            } else if (!object) {
+              setSpotCluster(null)
+              setSpotHex(null)
+            }
+          }}
         >
           <Map mapStyle={MAP_STYLE} />
         </DeckGL>

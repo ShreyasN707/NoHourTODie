@@ -174,3 +174,28 @@ REGIONS: Dict[str, RegionConfig] = {
         description="Tumakuru District: 10 taluks, rural highways, vast coverage radii",
     ),
 }
+
+
+# Black spots (pipeline/blackspots.py): hexagons the ambulance repeatedly fails to reach within the target.
+# All ≈ our choices (no published Karnataka definition of an ambulance black spot exists).
+# A hexagon is a black spot when it has at least BLACKSPOT_MIN_LATE late calls in the 28-day replay and, with
+# one-sided ~95% confidence (Wilson lower bound, z = BLACKSPOT_Z), at least BLACKSPOT_MIN_LATE_SHARE of its calls were late.
+# Window: 12 weeks. Hexagons get only a few calls a month, so on 4-week windows only about a third of black
+# spots recur in the next 4 weeks (synthetic replay); on 12 weeks about half (Bengaluru) to two thirds (Tumakuru).
+BLACKSPOT_WINDOW_DAYS: int = 84
+BLACKSPOT_MIN_LATE: int = 3
+BLACKSPOT_MIN_LATE_SHARE: float = 0.50
+BLACKSPOT_Z: float = 1.645
+# Targeted re-placement: each feedback round multiplies a hexagon's MEXCLP weight by (1 + ALPHA x late-share lower
+# bound), capped at MAX_WEIGHT; the best round is picked on the 28 days before the evaluation window.
+BLACKSPOT_ALPHA: float = 1.0
+BLACKSPOT_MAX_WEIGHT: float = 6.0
+BLACKSPOT_ROUNDS: int = 3
+# New standby posts: candidates at out-of-reach black spots, at least SPACING_RINGS hexagons apart; a post is added
+# while it reaches at least MIN_POST_GAIN more out-of-reach late calls (per 28 days), up to MAX_NEW_POSTS.
+BLACKSPOT_MAX_CANDIDATE_POSTS: int = 40
+BLACKSPOT_POST_SPACING_RINGS: int = 2
+BLACKSPOT_MAX_NEW_POSTS: int = 8
+BLACKSPOT_MIN_POST_GAIN: int = 5
+# Extra ambulances tried on top of the new posts (share of today's physical fleet)
+BLACKSPOT_FLEET_STEPS: List[float] = [0.10, 0.25]
